@@ -1,4 +1,3 @@
-import base64
 import requests
 import os
 import json
@@ -164,7 +163,13 @@ def ask_labels(text, term, termlist):
 
     for result in results:
         syn = result['synonym']
-        syntype = result['synonymType']
+        if 'synonymType' in result:
+            syntype = result['synonymType']
+        elif 'synonymousType' in result:
+            syntype = result['synonymousType']
+        else:
+            print(f'{result} does not contain synonymType or synonymousType')
+            continue
         curies = labels[syn]
         for curie in curies:
             termlist[curie]["synonym_Type"] = syntype
@@ -201,4 +206,5 @@ def query(prompt):
     content = response.json()["choices"][0]["message"]["content"]
     chunk = content[content.index("["):(content.rindex("]")+1)]
     output = json.loads(chunk)
+
     return output

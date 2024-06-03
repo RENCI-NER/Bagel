@@ -3,8 +3,8 @@ import requests
 from requests.adapters import HTTPAdapter, Retry
 from collections import defaultdict
 
-from comparator.engines.nameres import NameResNEREngine
-from comparator.engines.sapbert import SAPBERTNEREngine
+from benchmarks.comparator.engines.nameres import NameResNEREngine
+from benchmarks.comparator.engines.sapbert import SAPBERTNEREngine
 
 from src.gpt import ask_labels, ask_classes, ask_classes_and_descriptions
 
