@@ -1,0 +1,7 @@
+openai==1.30.5
+requests==2.32.3
+langchain==0.2.1
+langchain-community==0.2.1
+langchain-core==0.2.3
+langchain-text-splitters==0.2.0
+git+https://github.com/RENCI-NER/benchmarks.git
