@@ -1,0 +1,20 @@
+prompts:
+  - name: "ask_class_and_descriptions"
+    version: "90ba9f06"
+    # default will be bagel.
+    hub_base: "bagel"
+  - name: "ask_classes"
+    version: "814e7281"
+  - name: "ask_labels"
+    version: "d0fefbf5"
+
+openai_config:
+  llm_model_name: "gpt-4o-2024-05-13"
+  organization: ""
+  access_key: ""
+  llm_model_args: {}
+
+ollama_config:
+  llm_model_name: "llama3"
+  ollama_base_url: "https://ollama.apps.renci.org"
+  llm_model_args: {}
