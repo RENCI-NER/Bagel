@@ -28,5 +28,5 @@ jobs:
               with:
                   context: .
                   push: true
-                  tags: ghcr.io/${{ github.repository }}:${{ steps.get_version.outputs.VERSION }}
+                  tags: ghcr.io/bagel:${{ steps.get_version.outputs.VERSION }}
                   labels: ${{ steps.meta_base_image.outputs.labels }}
