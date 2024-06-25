@@ -24,15 +24,15 @@ class PromptSettings(BaseModel):
 
 
 class OpenAIConfig(BaseModel):
-    llm_model_name: str = Field(..., description="Name of the model")
-    organization: str = Field(..., description="OPENAI organization")
-    access_key: str = Field(..., description="OPENAI access key")
+    llm_model_name: str = Field(default="gpt4o", description="Name of the model")
+    organization: str = Field(default="org id", description="OPENAI organization")
+    access_key: str = Field(default="access key", description="OPENAI access key")
     llm_model_args: dict = Field(default_factory=dict, description="Arguments to pass to the model")
 
 
 class OLLAMAConfig(BaseModel):
-    llm_model_name: str = Field(..., description="Name of the model")
-    ollama_base_url: str = Field(..., description="URL of the OLLAMA instance")
+    llm_model_name: str = Field(default="llama3", description="Name of the model")
+    ollama_base_url: str = Field(default="https://ollama.apps.renci.org", description="URL of the OLLAMA instance")
     llm_model_args: dict = Field(default_factory=dict, description="Arguments to pass to the model")
 
 
@@ -40,6 +40,7 @@ class Settings(BaseModel):
     prompts: List[PromptSettings] = Field(default=[], description="Prompts to be used in the applicaton")
     openai_config: OpenAIConfig = Field(default=None, description="")
     ollama_config: OLLAMAConfig = Field(default=None, description="")
+    langServe: bool = True
 
 
 

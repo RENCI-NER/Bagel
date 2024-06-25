@@ -7,6 +7,7 @@ from langchain_community.llms import Ollama
 from langchain.llms import BaseLLM
 from langchain.prompts import Prompt
 from models import SynonymListContext, Entity
+from typing import List
 
 
 def get_ollama_llm(ollama_config: OLLAMAConfig):
@@ -45,13 +46,22 @@ class LLMHelper:
         }, verbose=True)
 
     @classmethod
-    def get_chain(cls, prompt: Prompt, llm: BaseLLM, model_name: str=""):
+    async def ask_batch(cls, llm: BaseLLM, prompt: Prompt, synonym_contexts: List[SynonymListContext]):
+        chain = cls.get_chain(prompt=prompt, llm=llm)
+        return await chain.abatch([{
+            'text': synonym_context.text,
+            'term': synonym_context.entity,
+            'synonym_list': synonym_context.pretty_print_synonyms()
+        } for synonym_context in synonym_contexts])
+
+    @classmethod
+    def get_chain(cls, prompt: Prompt, llm: BaseLLM, model_name: str = ""):
         chain = (prompt | llm)
-        chain.name = prompt.metadata['lc_hub_repo'] + ('_' + model_name if not model_name else "")
+        chain.name = prompt.metadata['lc_hub_repo'] + '_' + model_name
         return chain
 
 
-class ChainFactory():
+class ChainFactory:
     chains = {}
 
     @classmethod
@@ -61,6 +71,7 @@ class ChainFactory():
             (settings.openai_config.llm_model_name, get_openai_llm(settings.openai_config)),
             (settings.ollama_config.llm_model_name, get_ollama_llm(settings.ollama_config))
         ]
+
     @classmethod
     def init_chains(cls):
         prompts = load_prompts(settings.prompts)
@@ -87,61 +98,3 @@ class ChainFactory():
         for prompt_name, chain in ChainFactory.chains.items():
             all_chains += chain
         return all_chains
-
-
-if __name__ == '__main__':
-
-    abstract = """
-    The effect of induced hypertension instituted after a 2-h delay following middle cerebral artery occlusion. 
-    """
-    target = 'Hypertension'
-    synonym_list = [
-        ('Hypertension, CTCAE', 'PhenotypicFeature',
-         ['A disorder characterized by a pathological increase in blood pressure.']),
-        ('intracranial hypertension', 'Disease',
-         ['A finding characterized by increased cerebrospinal fluid pressure within the skull.']),
-        ('Ocular hypertension', 'PhenotypicFeature',
-         ['Intraocular pressure that is 2 standard deviations above the population mean.']),
-        ('portal hypertension', 'Disease', [
-            'Increased blood pressure in the portal venous system. It is most commonly caused by cirrhosis. Other causes include portal vein thrombosis, Budd-Chiari syndrome, and right heart failure. Complications include ascites, esophageal varices, encephalopathy, and splenomegaly.']),
-        ('secondary hypertension', 'Disease', ['High blood pressure caused by an underlying medical condition.']),
-        ('essential hypertension', 'Disease', ['Hypertension that presents without an identifiable cause.']), (
-        'malignant hypertension', 'Disease',
-        ['Severe hypertension that is characterized by rapid onset of extremely high blood pressure.']), (
-        'renal hypertension', 'Disease',
-        ["Hypertension caused by the kidney's hormonal response to narrowing or occlusion of the renal arteries."]),
-        ('ocular hypertension', 'Disease', ['Abnormally high intraocular pressure.']),
-        ('renovascular hypertension', 'Disease', ['High blood pressure secondary to renal artery stenosis.']),
-        ('Hypertension (variable)', 'PhenotypicFeature', ['']), ('Hypertensive (finding)', 'PhenotypicFeature', ['']), (
-        'hypertensive disorder', 'Disease', [
-            'Persistently high systemic arterial blood pressure. Based on multiple readings (blood pressure determination), hypertension is currently defined as when systolic pressure is consistently greater than 140 mm Hg or when diastolic pressure is consistently 90 mm Hg or more.']),
-        ('hypertension (systemic) susceptibility', 'Disease', ['']), ('Hypertelis', 'OrganismTaxon', ['']), (
-        'Increased blood pressure', 'PhenotypicFeature', [
-            'Abnormal increase in blood pressure. An individual measurement of increased blood pressure does not necessarily imply hypertension. In practical terms, multiple measurements are recommended to diagnose the presence of hypertension.']),
-        ('Hypertet', 'NamedThing', ['']),
-        ('hypertension complicated', 'Disease', [''])
-    ]
-
-    entities = []
-    for s in synonym_list:
-        entity = Entity(
-            label=s[0],
-            entity_type=s[1],
-            description=s[2][0]
-        )
-        entities.append(entity)
-
-    context = SynonymListContext(
-        text=abstract,
-        entity=target,
-        synonyms=entities
-    )
-    prompts = prompt.load_prompts(settings.prompts)
-    llama3 = get_ollama_llm(settings.ollama_config)
-    import asyncio
-    response = asyncio.run(LLMHelper.ask(
-        prompt=prompts['ask_classes'],
-        llm=llama3,
-        synonym_context=context
-    ))
-
