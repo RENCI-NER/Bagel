@@ -11,9 +11,9 @@ WORKDIR $HOME
 
 ENV PATH=$HOME/.local/bin:$PATH
 
-COPY --chown=$USER . koios/
-WORKDIR $HOME/koios
-ENV PYTHONPATH=$HOME/koios/src
+COPY --chown=$USER . bagel/
+WORKDIR $HOME/bagel
+ENV PYTHONPATH=$HOME/bagel/src
 RUN pip install -r requirements.txt
 ENTRYPOINT python src/server.py
 
