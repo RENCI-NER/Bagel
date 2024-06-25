@@ -3,11 +3,8 @@ ARG BRANCH=main
 
 RUN pip install --upgrade pip
 
-ENV USER bagel
+ENV USER nru
 ENV HOME /home/$USER
-ENV UID 1000
-
-RUN adduser --disabled-login --home $HOME --uid $UID $USER
 
 USER $USER
 WORKDIR $HOME
