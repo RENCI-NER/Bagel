@@ -28,5 +28,5 @@ jobs:
               with:
                   context: .
                   push: true
-                  tags: ghcr.io/bagel:${{ steps.get_version.outputs.VERSION }}
+                  tags: ghcr.io/renci-ner/bagel:${{ steps.get_version.outputs.VERSION }}
                   labels: ${{ steps.meta_base_image.outputs.labels }}
