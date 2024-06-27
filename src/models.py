@@ -25,4 +25,11 @@ class SynonymListContext(BaseModel):
         return string
 
 
+class SynonymClassResponse(BaseModel):
+    synonym: str = Field(..., description="Synonym")
+    vocabulary_class: str = Field(..., description="Vocabulary class")
+    synonym_type: str = Field(..., description="Synonym type")
 
+
+class SynonymClassesResponse(BaseModel):
+    synonyms: List[SynonymClassResponse] = Field(..., description="Synonyms")

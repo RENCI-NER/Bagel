@@ -36,32 +36,32 @@ class BatchOpenAIQuery(OpenAIQuery):
 
 
 @app.post('/group_synonyms_ollama')
-def group_synonyms_ollama(query: OllamaQuery):
+async def group_synonyms_ollama(query: OllamaQuery):
     llm = get_ollama_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
 
 
 @app.post('/batch_group_synonyms_ollama')
-def batch_group_synonyms_ollama(query: BatchOllamaQuery):
+async def batch_group_synonyms_ollama(query: BatchOllamaQuery):
     llm = get_ollama_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
+    return await LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
 
 
 @app.post('/group_synonyms_openai')
-def group_synonyms_openai(query: OpenAIQuery):
+async def group_synonyms_openai(query: OpenAIQuery):
     llm = get_openai_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
 
 
 @app.post('/batch_group_synonyms_openai', description="Batch call multiple synonyms. "
                                                       "Note this is different from openai batch api.")
-def batch_group_synonyms_openai(query: BatchOpenAIQuery):
+async def batch_group_synonyms_openai(query: BatchOpenAIQuery):
     llm = get_openai_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
+    return await LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
 
 # add langserve endpoints
 if settings.langServe:

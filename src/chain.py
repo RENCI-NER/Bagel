@@ -6,7 +6,8 @@ from langchain_openai import ChatOpenAI
 from langchain_community.llms import Ollama
 from langchain.llms import BaseLLM
 from langchain.prompts import Prompt
-from models import SynonymListContext, Entity
+from models import SynonymListContext, SynonymClassesResponse
+from langchain_core.output_parsers import JsonOutputParser
 from typing import List
 
 
@@ -56,7 +57,7 @@ class LLMHelper:
 
     @classmethod
     def get_chain(cls, prompt: Prompt, llm: BaseLLM, model_name: str = ""):
-        chain = (prompt | llm)
+        chain = (prompt | llm | JsonOutputParser(pydantic_object=SynonymClassesResponse))
         chain.name = prompt.metadata['lc_hub_repo'] + '_' + model_name
         return chain
 
@@ -98,3 +99,89 @@ class ChainFactory:
         for prompt_name, chain in ChainFactory.chains.items():
             all_chains += chain
         return all_chains
+
+
+
+
+if __name__ == '__main__':
+
+
+
+    # abstract = """
+    # The effect of induced hypertension instituted after a 2-h delay following middle cerebral artery occlusion.
+    # """
+    # target = 'Hypertension'
+    # synonym_list = [
+    #     ('Hypertension, CTCAE', 'PhenotypicFeature',
+    #      ['A disorder characterized by a pathological increase in blood pressure.']),
+    #     ('intracranial hypertension', 'Disease',
+    #      ['A finding characterized by increased cerebrospinal fluid pressure within the skull.']),
+    #     ('Ocular hypertension', 'PhenotypicFeature',
+    #      ['Intraocular pressure that is 2 standard deviations above the population mean.']),
+    #     ('portal hypertension', 'Disease', [
+    #         'Increased blood pressure in the portal venous system. It is most commonly caused by cirrhosis. Other causes include portal vein thrombosis, Budd-Chiari syndrome, and right heart failure. Complications include ascites, esophageal varices, encephalopathy, and splenomegaly.']),
+    #     ('secondary hypertension', 'Disease', ['High blood pressure caused by an underlying medical condition.']),
+    #     ('essential hypertension', 'Disease', ['Hypertension that presents without an identifiable cause.']), (
+    #     'malignant hypertension', 'Disease',
+    #     ['Severe hypertension that is characterized by rapid onset of extremely high blood pressure.']), (
+    #     'renal hypertension', 'Disease',
+    #     ["Hypertension caused by the kidney's hormonal response to narrowing or occlusion of the renal arteries."]),
+    #     ('ocular hypertension', 'Disease', ['Abnormally high intraocular pressure.']),
+    #     ('renovascular hypertension', 'Disease', ['High blood pressure secondary to renal artery stenosis.']),
+    #     ('Hypertension (variable)', 'PhenotypicFeature', ['']), ('Hypertensive (finding)', 'PhenotypicFeature', ['']), (
+    #     'hypertensive disorder', 'Disease', [
+    #         'Persistently high systemic arterial blood pressure. Based on multiple readings (blood pressure determination), hypertension is currently defined as when systolic pressure is consistently greater than 140 mm Hg or when diastolic pressure is consistently 90 mm Hg or more.']),
+    #     ('hypertension (systemic) susceptibility', 'Disease', ['']), ('Hypertelis', 'OrganismTaxon', ['']), (
+    #     'Increased blood pressure', 'PhenotypicFeature', [
+    #         'Abnormal increase in blood pressure. An individual measurement of increased blood pressure does not necessarily imply hypertension. In practical terms, multiple measurements are recommended to diagnose the presence of hypertension.']),
+    #     ('Hypertet', 'NamedThing', ['']),
+    #     ('hypertension complicated', 'Disease', [''])
+    # ]
+    #
+    # entities = []
+    # for s in synonym_list:
+    #     entity = Entity(
+    #         label=s[0],
+    #         entity_type=s[1],
+    #         description=s[2][0]
+    #     )
+    #     entities.append(entity)
+    #
+    # import json
+    # # print(json.dumps([x.__dict__ for x in entities], indent=2))
+    #
+    # context = SynonymListContext(
+    #     text=abstract,
+    #     entity=target,
+    #     synonyms=entities
+    # )
+    # print(context.pretty_print_synonyms())
+    prompts = prompt.load_prompts(settings.prompts)
+
+    llm = get_openai_llm(settings.openai_config)
+    import json
+    with open('/home/kebedey/projects/ner/scratch/terms_syns.json') as stream:
+        data = json.load(stream)
+    contexts: List[SynonymListContext] = []
+    for terms in data['terms']:
+        contexts.append(SynonymListContext(**{
+            'entity': terms['term'],
+            'text': data['text'],
+            'synonyms':  terms['synonyms']
+        }))
+
+
+
+
+
+    import asyncio
+
+    response = asyncio.run(LLMHelper.ask_batch(
+        prompt=prompts['ask_classes'],
+        llm=llm,
+        synonym_contexts=contexts
+    ))
+
+    print(response)
+
+

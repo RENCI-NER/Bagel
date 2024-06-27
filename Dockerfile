@@ -1,4 +1,4 @@
-FROM ghcr.io/translatorsri/renci-python-image:3.12.4
+FROM ghcr.io/translatorsri/renci-python-image:3.11
 ARG BRANCH=main
 
 RUN pip install --upgrade pip
