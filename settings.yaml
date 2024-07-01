@@ -1,0 +1,16 @@
+prompts:
+  - name: "ask_classes"
+    version: ""
+
+openai_config:
+  llm_model_name: "gpt-4o-2024-05-13"
+  organization: ""
+  access_key: ""
+  llm_model_args: {}
+
+ollama_config:
+  llm_model_name: "llama3"
+  ollama_base_url: "https://ollama.apps.renci.org"
+  llm_model_args: {}
+
+langServe: true
