@@ -47,9 +47,9 @@ class Settings(BaseModel):
 def load_settings():
     yaml_path = pathlib.Path(os.path.dirname(__file__), '..', 'settings.yaml')
     with open(str(yaml_path), 'r') as stream:
-        settings = Settings(**yaml.load(stream, yaml.FullLoader))
-    return settings
+        _settings = Settings(**yaml.load(stream, yaml.FullLoader))
+    return _settings
+
 
 # app settings
-
 settings = load_settings()
