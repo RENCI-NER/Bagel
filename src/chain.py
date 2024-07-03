@@ -1,4 +1,3 @@
-from langchain.chains.base import Chain
 import prompt
 from prompt import load_prompts
 from config import settings, Settings, OLLAMAConfig, OpenAIConfig
@@ -6,9 +5,9 @@ from langchain_openai import ChatOpenAI
 from langchain_community.llms import Ollama
 from langchain.llms import BaseLLM
 from langchain.prompts import Prompt
-from models import SynonymListContext, SynonymClassesResponse
+from models import SynonymListContext, SynonymClassesResponse, Entity
 from langchain_core.output_parsers import JsonOutputParser
-from typing import List
+from typing import List, Dict
 
 
 def get_ollama_llm(ollama_config: OLLAMAConfig):
@@ -42,20 +41,45 @@ class LLMHelper:
     @classmethod
     async def ask(cls, llm: BaseLLM, prompt: Prompt, synonym_context: SynonymListContext):
         chain = cls.get_chain(prompt=prompt, llm=llm)
-        return await chain.ainvoke({
+        response = await chain.ainvoke({
             'text': synonym_context.text,
             'term': synonym_context.entity,
             'synonym_list': synonym_context.pretty_print_synonyms()
         }, verbose=True)
+        return LLMHelper.re_map_responses(synonym_context.synonyms, response)
+
+
+    @classmethod
+    def re_map_responses(cls, synonym_list: List[Entity], llm_response: Dict[str, any]) -> any:
+        # Map back ids to llm responses
+        by_color = {
+            entity.color_code: entity for entity in synonym_list
+        }
+        entities = []
+        for item in llm_response:
+            synonym_type = item['synonym_type']
+            entity = by_color[item['color_code']]
+            final = entity.dict()
+            final.update({
+                "synonym_type": synonym_type
+            })
+            del final['color_code']
+            entities.append(final)
+        return entities
 
     @classmethod
     async def ask_batch(cls, llm: BaseLLM, prompt: Prompt, synonym_contexts: List[SynonymListContext]):
         chain = cls.get_chain(prompt=prompt, llm=llm)
-        return await chain.abatch([{
+        responses = await chain.abatch([{
             'text': synonym_context.text,
             'term': synonym_context.entity,
             'synonym_list': synonym_context.pretty_print_synonyms()
         } for synonym_context in synonym_contexts])
+        results = []
+        for synonym_context, response in zip(synonym_contexts,responses):
+            results.append(LLMHelper.re_map_responses(synonym_context.synonyms, response))
+        return results
+
 
     @classmethod
     def get_chain(cls, prompt: Prompt, llm: BaseLLM, model_name: str = ""):
