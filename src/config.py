@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List
 import yaml,pathlib, os
-
+from logutil import LoggingUtil
 
 
 class PromptSettings(BaseModel):
@@ -44,6 +44,7 @@ class Settings(BaseModel):
     openai_config: OpenAIConfig = Field(default=None, description="")
     ollama_config: OLLAMAConfig = Field(default=None, description="")
     langServe: bool = True
+    logging_level: str = "DEBUG"
 
 
 
@@ -56,3 +57,5 @@ def load_settings():
 
 # app settings
 settings = load_settings()
+
+logger = LoggingUtil.init_logging('bagel', log_file_level=settings.logging_level)

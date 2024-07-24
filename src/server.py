@@ -1,11 +1,12 @@
 from langserve import CustomUserType, add_routes
-from config import settings, OpenAIConfig, OLLAMAConfig
+from config import settings, OpenAIConfig, OLLAMAConfig, logger
 from chain import ChainFactory, LLMHelper, get_ollama_llm, get_openai_llm
 import prompt
 from models import SynonymListContext, BaseModel, Field, Entity
 from typing import List
 import fastapi
 import httpx
+
 
 app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranking prompts against pre-configured LLMs")
 
@@ -79,7 +80,8 @@ async def find_curies(query: OpenAICurieQuery):
                     "name": x["label"],
                     "name_res_rank": index + 1,
                     "nameres_score": x["score"],
-                    "taxa": x["taxa"]
+                    "taxa": x["taxa"],
+                    "category": x["types"][0]
                 } for index, x in enumerate(name_res_json)
             }
 
@@ -92,7 +94,8 @@ async def find_curies(query: OpenAICurieQuery):
                 reformatted[value["curie"]].update({
                     "name": value["name"],
                     "sapbert_score": value["score"],
-                    "sapbert_rank": index + 1
+                    "sapbert_rank": index + 1,
+                    "category": value["category"]
                 })
         # Node norm payload to normalize and get descriptions of all curies gathered above,
         # all conflations are true
@@ -137,8 +140,8 @@ async def find_curies(query: OpenAICurieQuery):
             Entity(**{
                 "label": value["name"],
                 "identifier": identifier,
-                "description": value["description"],
-                "entity_type": value["category"],
+                "description": value.get("description", ""),
+                "entity_type": value.get("category", ""),
             }) for identifier, value in final_results.items()
         ]
         context: SynonymListContext = SynonymListContext(
