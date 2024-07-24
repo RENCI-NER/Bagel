@@ -1,6 +1,6 @@
 import prompt
 from prompt import load_prompts
-from config import settings, Settings, OLLAMAConfig, OpenAIConfig
+from config import settings, Settings, OLLAMAConfig, OpenAIConfig, logger
 from langchain_openai import ChatOpenAI
 from langchain_community.llms import Ollama
 from langchain.llms import BaseLLM
@@ -8,6 +8,7 @@ from langchain.prompts import Prompt
 from models import SynonymListContext, SynonymClassesResponse, Entity
 from langchain_core.output_parsers import JsonOutputParser
 from typing import List, Dict
+
 
 
 def get_ollama_llm(ollama_config: OLLAMAConfig):
@@ -41,11 +42,19 @@ class LLMHelper:
     @classmethod
     async def ask(cls, llm: BaseLLM, prompt: Prompt, synonym_context: SynonymListContext):
         chain = cls.get_chain(prompt=prompt, llm=llm)
+        logger.info("SENDING TO LLM ........")
+        logger.info(prompt.format_prompt(**{
+            'text': synonym_context.text,
+            'term': synonym_context.entity,
+            'synonym_list': synonym_context.pretty_print_synonyms()
+        }).to_string())
+        logger.info("END LLM MESSAGE. ")
         response = await chain.ainvoke({
             'text': synonym_context.text,
             'term': synonym_context.entity,
             'synonym_list': synonym_context.pretty_print_synonyms()
         }, verbose=True)
+
         return LLMHelper.re_map_responses(synonym_context.synonyms, response)
 
 
