@@ -67,8 +67,8 @@ async def find_curies(query: OpenAICurieQuery):
                 "bl_type": query.entity_type
             }
         # Get response from sapbert and nameres
-        name_res_response = await client.get(name_res_url)
-        sapbert_response = await client.post(query.sapbert_url, json=sapbert_payload)
+        name_res_response = await client.get(name_res_url, timeout=30)
+        sapbert_response = await client.post(query.sapbert_url, json=sapbert_payload, timeout=10)
 
         # reformatting bucket to collect score , rank , and labels from nameres and sapbert
         reformatted = {}
