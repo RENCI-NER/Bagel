@@ -25,9 +25,13 @@ def generate_entities(file_name):
                 }
 
 
-async def annotate_medmentions(input_file, output_file, exclude_types=[]):
+async def annotate_medmentions(input_file, output_file,
+                               exclude_types=None,
+                               chunk_size=7,
+                               name_res_url="",
+                               sapbert_url="",
+                               node_norm_url=""):
     entities_to_annotate = []
-    chunk_size = 7
     with open(output_file, 'w') as stream:
         for entity in generate_entities(input_file):
             if any(bl_type in exclude_types for bl_type in entity['biolink_types']):
@@ -35,7 +39,10 @@ async def annotate_medmentions(input_file, output_file, exclude_types=[]):
             entities_to_annotate.append(entity)
             if len(entities_to_annotate) == chunk_size:
                 # send this off to annotations
-                results = await annotate_chunk(entities_to_annotate)
+                results = await annotate_chunk(entities_to_annotate,
+                                               name_res_url=name_res_url,
+                                               sapbert_url=sapbert_url,
+                                               node_norm_url=node_norm_url)
                 # write results to file
                 write_annotations_to_file(results, entities_to_annotate, stream)
                 # reset ...
@@ -46,14 +53,14 @@ async def annotate_medmentions(input_file, output_file, exclude_types=[]):
             write_annotations_to_file(results, entities_to_annotate, stream)
 
 
-async def annotate_chunk(list_of_entities):
+async def annotate_chunk(list_of_entities , name_res_url, sapbert_url, node_norm_url):
     async with httpx.AsyncClient(timeout=600) as client:
         tasks = [
             get_entity_ids(
                 entity['entity'],
-                name_res_url="https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&string=",
-                sapbert_url="https://sap-qdrant.apps.renci.org/annotate/",
-                node_norm_url="https://nodenormalization-sri.renci.org/get_normalized_nodes",
+                name_res_url=name_res_url,
+                sapbert_url=sapbert_url,
+                node_norm_url=node_norm_url,
                 session=client,
                 entity_type=None,
                 count=10
@@ -71,9 +78,12 @@ def write_annotations_to_file(annotation_results, entities, stream):
 if __name__ == "__main__":
     asyncio.run(
         annotate_medmentions(
-            input_file='/home/kebedey/projects/ner/scratch/corpus_pubtator.jsonl',
-            output_file='/home/kebedey/projects/ner/scratch/sap_bert_nameres_annotations.jsonl',
-            exclude_types=['biolink:Protein']
+            input_file='../../scratch/corpus_pubtator.jsonl',
+            output_file='../../scratch/sap_bert_nameres_annotations.jsonl',
+            exclude_types=['biolink:Protein'],
+            name_res_url="https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&string=",
+            sapbert_url="https://sap-qdrant.apps.renci.org/annotate/",
+            node_norm_url="https://nodenormalization-sri.renci.org/get_normalized_nodes",
         )
     )
 

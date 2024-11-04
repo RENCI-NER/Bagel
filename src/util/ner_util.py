@@ -1,10 +1,12 @@
 from httpx import AsyncClient
 from logutil import LoggingUtil
 import asyncio
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 logger = LoggingUtil.init_logging(name=__name__)
 
 
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None):
     payload = {
         "text": f"{entity}",
@@ -31,9 +33,11 @@ async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, en
             })
     else:
         logger.error(f"Error: sapbert call for {entity} , payload: {payload} returned code: {response.status_code}")
+        raise Exception(f"Error: sapbert call for {entity} , payload: {payload} returned code: {response.status_code}")
     return reformatted
 
 
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None):
     name_res_url = url + entity
     if entity_type is not None:
@@ -54,6 +58,7 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
         }
     else:
         logger.error(f"Error: nameres call for {entity} , url: {name_res_url} returned code: {response.status_code}")
+        raise Exception(f"Error: nameres call for {entity}")
     return formatted
 
 
