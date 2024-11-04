@@ -13,4 +13,6 @@ ollama_config:
   ollama_base_url: "https://ollama.apps.renci.org"
   llm_model_args: {}
 
-langServe: true
+logging_level: DEBUG
+
+langServe: false

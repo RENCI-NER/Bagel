@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List
 import yaml,pathlib, os
-
+from logutil import LoggingUtil
 
 
 class PromptSettings(BaseModel):
@@ -24,10 +24,13 @@ class PromptSettings(BaseModel):
 
 
 class OpenAIConfig(BaseModel):
-    llm_model_name: str = Field(default="gpt4o", description="Name of the model")
+    llm_model_name: str = Field(default="gpt-4o-mini", description="Name of the model")
     organization: str = Field(default="org id", description="OPENAI organization")
     access_key: str = Field(default="access key", description="OPENAI access key")
-    llm_model_args: dict = Field(default_factory=dict, description="Arguments to pass to the model")
+    llm_model_args: dict = Field(default_factory=lambda: {
+        "top_p": 0,
+        "temperature": 0.1
+    }, description="Arguments to pass to the model")
 
 
 class OLLAMAConfig(BaseModel):
@@ -41,6 +44,7 @@ class Settings(BaseModel):
     openai_config: OpenAIConfig = Field(default=None, description="")
     ollama_config: OLLAMAConfig = Field(default=None, description="")
     langServe: bool = True
+    logging_level: str = "DEBUG"
 
 
 
@@ -53,3 +57,5 @@ def load_settings():
 
 # app settings
 settings = load_settings()
+
+logger = LoggingUtil.init_logging('bagel', log_file_level=settings.logging_level)
