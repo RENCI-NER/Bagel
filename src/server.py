@@ -3,6 +3,7 @@ from config import settings, OpenAIConfig, OLLAMAConfig, logger
 from chain import ChainFactory, LLMHelper, get_ollama_llm, get_openai_llm
 import prompt
 from models import SynonymListContext, BaseModel, Field, Entity
+from util.ner_util import get_entity_ids
 from typing import List
 import fastapi
 import httpx
@@ -50,90 +51,17 @@ class OpenAICurieQuery(BaseModel):
 
 @app.post('/find_curies_openai')
 async def find_curies(query: OpenAICurieQuery):
-    # find nameres results
     async with httpx.AsyncClient() as client:
-        # create nameres url using entity
-        name_res_url = query.name_res_url + query.entity
-        # create sapbert request payload for entity
-        sapbert_payload = {
-            "text": f"{query.entity}",
-            "model_name": "sapbert",
-            "count": 10
-        }
-        # if entity type is sent as part of the query add it to the sapbert and nameres requests
-        if query.entity_type:
-            name_res_url += "&biolink_type=" + query.entity_type
-            sapbert_payload["args"] = {
-                "bl_type": query.entity_type
-            }
-        # Get response from sapbert and nameres
-        name_res_response = await client.get(name_res_url, timeout=30)
-        sapbert_response = await client.post(query.sapbert_url, json=sapbert_payload, timeout=10)
-
-        # reformatting bucket to collect score , rank , and labels from nameres and sapbert
-        reformatted = {}
-
-        if name_res_response.status_code == 200:
-            name_res_json = name_res_response.json()
-            reformatted = {
-                f"{x['curie']}": {
-                    "name": x["label"],
-                    "name_res_rank": index + 1,
-                    "nameres_score": x["score"],
-                    "taxa": x["taxa"],
-                    "category": x["types"][0]
-                } for index, x in enumerate(name_res_json)
-            }
-
-        if sapbert_response.status_code == 200:
-            sapbert_json = sapbert_response.json()
-            for index, value in enumerate(sapbert_json):
-                reformatted[value["curie"]] = reformatted.get(value["curie"], {})
-                # merge similar queries ...
-                # more merging if normalization brings them together too, in the normalization section ahead.
-                reformatted[value["curie"]].update({
-                    "name": value["name"],
-                    "sapbert_score": value["score"],
-                    "sapbert_rank": index + 1,
-                    "category": value["category"]
-                })
-        # Node norm payload to normalize and get descriptions of all curies gathered above,
-        # all conflations are true
-        nodenorm_payload = {
-            "curies": list(reformatted.keys()),
-            "conflate": True,
-            "description": True,
-            "drug_chemical_conflate": True
-        }
-        normalized_response = await client.post(query.nodenorm_url, json=nodenorm_payload)
-        final_results = {}
-        added = []
-        if normalized_response.status_code == 200:
-            normalized_response_json = normalized_response.json()
-            for curie in normalized_response_json:
-                normalized_identifier = normalized_response_json[curie]
-                # make sure that we actually have normalized it
-                if normalized_identifier:
-                    norm_id = normalized_identifier["id"]["identifier"]
-                    norm_label = normalized_identifier["id"].get("label", "")
-                    norm_desc = normalized_identifier["id"].get("description", "")
-                    norm_category = normalized_identifier["type"][0]
-                    # go and get it from the above reformatted dict,
-                    reformatted_entry = reformatted[curie]
-                    final_results[norm_id] = reformatted_entry
-                    final_results[norm_id].update({
-                        "description": norm_desc,
-                        "category": norm_category,
-                    })
-                    if norm_label:
-                        final_results[norm_id].update({
-                            "name": norm_label
-                        })
-                    added.append(curie)
-            # For some reason if these are not normalizing let's just add them into the final list
-            for x in reformatted:
-                if x not in added:
-                    final_results[x] = reformatted[x]
+        # collect results from name-res , and sap-bert
+        final_results = await get_entity_ids(
+            entity=query.entity,
+            entity_type=query.entity_type,
+            sapbert_url=query.sapbert_url,
+            name_res_url=query.name_res_url,
+            node_norm_url=query.nodenorm_url,
+            session=client,
+            count=20
+        )
         llm = get_openai_llm(query.config)
         _prompt = prompt.load_prompt_from_hub(query.prompt_name)
         id_list = [
@@ -149,7 +77,6 @@ async def find_curies(query: OpenAICurieQuery):
             entity=query.entity,
             synonyms=id_list
         )
-
         result = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=context)
         remapped = {}
         for r in result:
