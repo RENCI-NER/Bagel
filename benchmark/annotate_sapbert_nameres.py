@@ -49,7 +49,11 @@ async def annotate_medmentions(input_file, output_file,
                 entities_to_annotate = []
         # and for the remaining ones
         if len(entities_to_annotate) > 0:
-            results = await annotate_chunk(entities_to_annotate)
+            results = await annotate_chunk(entities_to_annotate,
+                                           name_res_url=name_res_url,
+                                           sapbert_url=sapbert_url,
+                                           node_norm_url=node_norm_url
+                                           )
             write_annotations_to_file(results, entities_to_annotate, stream)
 
 
