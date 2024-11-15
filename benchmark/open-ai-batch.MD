@@ -1,9 +1,7 @@
 ## Configuration
 The tool relies on a configuration file to define the workflow parameters. Below is an example configuration file:
 
-```
-json
-Copy code
+```json
 {
   "model_name": "gpt-4o",
   "model_args": {
