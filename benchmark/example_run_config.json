@@ -1,0 +1,10 @@
+{
+  "model_name": "gpt-4o",
+  "model_args": {
+    "temperature": 0
+  },
+  "prompt_name": "bagel/ask_classes:4da4ad77",
+  "output_dir": "/home/kebedey/projects/ner/scratch/batch-test/",
+  "annotation_file_path": "/home/kebedey/projects/ner/scratch/sap_bert_nameres_annotations.jsonl",
+  "medmentions_file": "/home/kebedey/projects/ner/scratch/corpus_pubtator.jsonl"
+}
