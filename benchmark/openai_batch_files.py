@@ -256,7 +256,7 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             annotation_obj = json.loads(line)
             req_id = f"{annotation_obj['pmid']}-{annotation_obj['start_index']}-{annotation_obj['end_index']}"
             annotations_by_req_id[req_id] = annotation_obj
-    with (open(batch_result_file) as stream):
+    with open(batch_result_file) as stream:
         for line in stream:
             batch_result = json.loads(line)
             req_id = batch_result["custom_id"]
