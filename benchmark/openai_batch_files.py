@@ -301,7 +301,9 @@ def main(config, subcommand, oai_client):
     prompt = config['prompt_name']
     m_args = config['model_args']
     m_name = config['model_name']
+    chunk_size = config['chunk_size']
     if subcommand == 'start':
+
         create_openai_batch_files(
             abstracts_file=med_mentions_file,
             annotations_file=annotations,
@@ -309,7 +311,7 @@ def main(config, subcommand, oai_client):
             prompt_name=prompt,
             model_name=m_name,
             model_args=m_args,
-            chunk_size=50_000
+            chunk_size=chunk_size
         )
         start_batches(
             directory=output_dir,
