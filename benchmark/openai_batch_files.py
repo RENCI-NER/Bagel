@@ -41,7 +41,7 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
     :param additional_model_args: model args
     :return: openai batch api compatible dict
     """
-    with (open(annotations_file_name) as stream):
+    with open(annotations_file_name) as stream:
         for line in stream:
             annotation_obj = json.loads(line)
             context = SynonymListContext(
