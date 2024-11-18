@@ -107,6 +107,7 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
     current_batch = count // chunk_size
     # each file is named outputdir/batch-x.jsonl where x is the index of the batch
     get_file_name = lambda c: os.path.join(output_path, "batch-" + str(c) + ".jsonl")
+    req_ids_in_file = []
     file_stream = open(get_file_name(current_batch), 'w')
     for i in create_openai_request(
             abstracts_by_pmid,
@@ -115,12 +116,16 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
             model_name=model_name,
             additional_model_args=model_args
         ):
-        if count // chunk_size != current_batch:
-            file_stream.close()
-            current_batch = count // chunk_size
-            file_stream = open(get_file_name(current_batch), 'w')
-        file_stream.write(json.dumps(i) + "\n")
-        count += 1
+        custom_id = i['custom_id']
+        if custom_id not in req_ids_in_file:
+            req_ids_in_file.append(custom_id)
+            if count // chunk_size != current_batch:
+                file_stream.close()
+                current_batch = count // chunk_size
+                req_ids_in_file = []
+                file_stream = open(get_file_name(current_batch), 'w')
+            file_stream.write(json.dumps(i) + "\n")
+            count += 1
     file_stream.close()
 
 ###########
