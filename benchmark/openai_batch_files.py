@@ -217,17 +217,19 @@ def get_batch_results(directory, client: openai.Client):
         batch_data = json.load(stream)
     for batch_row in batch_data:
         batch = client.batches.retrieve(batch_row["batch_job_id"])
-        if batch.status == "failed":
+        if batch.error_file_id:
             error_file = os.path.join(errors_dir, batch_row['file_name'].split(os.path.sep)[-1])
-
             client.files.content(batch.error_file_id).write_to_file(error_file)
             print(f"error file wrote to {error_file}")
-        elif batch.status == "completed":
+        if batch.output_file_id:
             response_file_name = os.path.join(outputs_dir, batch_row['file_name'].split(os.path.sep)[-1])
             client.files.content(batch.output_file_id).write_to_file(response_file_name)
             print(f"batch response file wrote to {response_file_name}")
-        else:
-            print(f"batch status {batch.status} , for file {batch_row['file_name']}")
+        if batch.errors:
+            errors = batch.errors.data
+            with open(os.path.join(errors_dir, batch_row['file_name'].split(os.path.sep)[-1].replace('.jsonl', '.log'))
+                    , mode='w') as log_stream:
+                log_stream.write('\n'.join([f'{e.code} - {e.message}' for e in errors]))
 
 ##########
 ## /End batch call
