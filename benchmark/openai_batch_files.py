@@ -258,6 +258,7 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
     :return:
     """
     annotations_by_req_id = {}
+    print(f"Remmapping : {batch_result_file} to {output_file_name}")
     with open(annotation_file) as stream:
         for line in stream:
             annotation_obj = json.loads(line)
@@ -287,14 +288,18 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             color_code_remap = LLMHelper.re_map_responses(entity_list.synonyms, llm_response)
             remapped_response = {}
             for r in color_code_remap:
-                cp = {key: val for key, val in annotations_by_req_id[req_id]["annotations"][r["identifier"]].items()}
-                cp.update({"synonym_type": r["synonym_type"]})
-                remapped_response[r["identifier"]] = cp
-            annotations_by_req_id[req_id]["llm_response_remapped"] = remapped_response
+                try:
+                    cp = {key: val for key, val in annotations_by_req_id[req_id]["annotations"][r["identifier"]].items()}
+                    cp.update({"synonym_type": r["synonym_type"]})
+                    remapped_response[r["identifier"]] = cp
+                    annotations_by_req_id[req_id]["llm_response_remapped"] = remapped_response
+                except KeyError:
+                    print(f"error processing ", annotations_by_req_id[req_id]["annotations"][r["identifier"]])
 
     with open(output_file_name, 'w') as stream:
         for req_id, annotation in annotations_by_req_id.items():
             stream.write(json.dumps(annotation) + '\n')
+        print(f"done processing {output_file_name}")
 
 ####
 # /End result processing
