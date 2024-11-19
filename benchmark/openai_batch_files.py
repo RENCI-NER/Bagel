@@ -285,7 +285,11 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
                     }) for identifier, value in annotations_by_req_id[req_id]["annotations"].items()
                 ]
             )
-            color_code_remap = LLMHelper.re_map_responses(entity_list.synonyms, llm_response)
+            try:
+                color_code_remap = LLMHelper.re_map_responses(entity_list.synonyms, llm_response)
+            except KeyError:
+                print(f"Error processing {llm_response}")
+                continue
             remapped_response = {}
             for r in color_code_remap:
                 try:
