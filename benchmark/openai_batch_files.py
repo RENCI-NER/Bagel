@@ -1,5 +1,6 @@
 import json
 import os.path
+from json import JSONDecodeError
 
 import openai
 
@@ -241,10 +242,19 @@ def remap_all(annotation_file, output_dir):
     files = glob(os.path.join(output_dir, 'complete', 'batch-*.jsonl'))
     remap_dir = os.path.join(output_dir,'remapped')
     os.makedirs(os.path.join(output_dir,'remapped'), exist_ok=True)
+    final_stats = {
+        "hallucinations": 0,
+        "json_errors": 0,
+        "total_lines": 0
+    }
     for file in files:
         file_name = file.split(os.path.sep)[-1]
         output_file_name = os.path.join(remap_dir, file_name)
-        remap_results(annotation_file, file, output_file_name)
+        stats = remap_results(annotation_file, file, output_file_name)
+        for k in stats:
+            final_stats[k] += stats[k]
+    with open(os.path.join(output_dir, 'remap_stats.json') , 'w') as stream:
+        json.dump(final_stats, stream)
 
 
 
@@ -258,6 +268,9 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
     :return:
     """
     annotations_by_req_id = {}
+    json_errors = 0
+    hallucinations = 0
+    processed_lines = 0
     print(f"Remmapping : {batch_result_file} to {output_file_name}")
     with open(annotation_file) as stream:
         for line in stream:
@@ -266,12 +279,16 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             annotations_by_req_id[req_id] = annotation_obj
     with open(batch_result_file) as stream:
         for line in stream:
+            processed_lines += 1
             batch_result = json.loads(line)
             req_id = batch_result["custom_id"]
-            llm_response = json.loads(batch_result["response"]["body"]["choices"][0]["message"]["content"]
-                                      .replace('```json', '')
-                                      .replace('```', '')) #if isinstance(batch_result["response"]["body"]["choices"][0]["message"], str) else batch_result["response"]["body"]["choices"][0]["message"]
-            annotations_by_req_id[req_id]["llm_repsonse"] = llm_response
+            try:
+                llm_response = json.loads(batch_result["response"]["body"]["choices"][0]["message"]["content"]
+                                          .replace('```json', '')
+                                          .replace('```', '')) #if isinstance(batch_result["response"]["body"]["choices"][0]["message"], str) else batch_result["response"]["body"]["choices"][0]["message"]
+            except JSONDecodeError as error :
+                json_errors += 1
+                annotations_by_req_id[req_id]["llm_repsonse"] = llm_response
             # map color code to synonym ids
             entity_list = SynonymListContext(
                 text="",
@@ -288,6 +305,7 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             try:
                 color_code_remap = LLMHelper.re_map_responses(entity_list.synonyms, llm_response)
             except KeyError:
+                hallucinations += 1
                 print(f"Error processing {llm_response}")
                 continue
             remapped_response = {}
@@ -304,6 +322,12 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
         for req_id, annotation in annotations_by_req_id.items():
             stream.write(json.dumps(annotation) + '\n')
         print(f"done processing {output_file_name}")
+
+    return {
+        "hallucinations": hallucinations,
+        "json_errors": json_errors,
+        "total_lines": processed_lines
+    }
 
 ####
 # /End result processing
@@ -386,51 +410,3 @@ if __name__ == '__main__':
         subcommand=_subcommand,
         oai_client=_oai_client
     )
-
-
-    # ann_file =
-    # abstract_file = '../../scratch/corpus_pubtator.jsonl'
-    # output_path = '../../scratch/batch-1/'
-    # model_args = {
-    #     "temperature": 0
-    # }
-    # model_name = "gpt-4o"
-    # prompt_name = ''
-    # create_openai_batch_files(
-    #     abstracts_file=abstract_file,
-    #     annotations_file=ann_file,
-    #     output_path=output_path,
-    #     prompt_name=prompt_name,
-    #     model_name=model_name,
-    #     model_args=model_args,
-    #     chunk_size=3
-    # )
-
-
-
-
-
-    # start_batches(output_path, client=client)
-    # print_batch_status(output_path, client)
-    # get_batch_results(output_path, client)
-    # remap_all(ann_file, output_path)
-    # abstracts = get_abstracts(abstracts_file)
-    # prompt = load_prompt_from_hub()
-    # openai_batch_file_name = '../../scratch/batch_test_file.json'
-    # with open(openai_batch_file_name, 'w') as stream:
-    #     for x in create_openai_request(abstracts, ann_file, prompt,
-    #                                    model_name='gpt-4o',
-    #                                    additional_model_args={'temperature': 0}
-    #                                    ):
-    #         stream.write(json.dumps(x) + '\n')
-    # batch_job = upload_file_and_start_batch(file_name=openai_batch_file_name,
-    #                                         client=client)
-    # with open("../../scratch/batch_log_test.json", 'w') as stream:
-    #     json.dump(batch_job.to_json(), stream, indent=2)
-
-    # client.files.content('file-tbxvGcyw2UoWAUtUgdkq9OLq').stream_to_file("../../scratch/openai-response-2.jsonl")
-    #
-    # client.files.content("file-WbxyxVmqMTBt2mF96UHVmt58")
-    # remap_results(ann_file, "../../scratch/openai-response.jsonl", "../../scratch/openai-remapped.jsonl" )
-
-
