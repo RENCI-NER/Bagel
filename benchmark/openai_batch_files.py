@@ -9,9 +9,9 @@ from prompt import load_prompt_from_hub
 from chain import LLMHelper
 from glob import glob
 
-##############
-## File prep functions
-############
+# #############
+# # File prep functions
+# ###########
 
 
 def get_abstracts(med_mentions_corpus_file_name):
@@ -44,7 +44,11 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
     """
     with open(annotations_file_name) as stream:
         for line in stream:
-            annotation_obj = json.loads(line)
+            try:
+                annotation_obj = json.loads(line)
+            except Exception as e:
+                print(line)
+                raise e
             context = SynonymListContext(
                 text=pmid_abstracts[annotation_obj['pmid']],
                 entity=annotation_obj['entity'],
@@ -129,11 +133,11 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
             count += 1
     file_stream.close()
 
-###########
-## /END file prep
+# ##########
+# # /END file prep
 #
-## Start Batch api code ...
-###########
+# # Start Batch api code ...
+# ##########
 
 
 def upload_file_and_start_batch(file_name, client):
@@ -232,11 +236,11 @@ def get_batch_results(directory, client: openai.Client):
                     , mode='w') as log_stream:
                 log_stream.write('\n'.join([f'{e.code} - {e.message}' for e in errors]))
 
-##########
-## /End batch call
+# #########
+# # /End batch call
 #
-## results processing
-##########
+# # results processing
+# #########
 
 def remap_all(annotation_file, output_dir):
     files = glob(os.path.join(output_dir, 'complete', 'batch-*.jsonl'))
@@ -329,9 +333,9 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
         "total_lines": processed_lines
     }
 
-####
+# ###
 # /End result processing
-#######
+# ######
 
 
 def main(config, subcommand, oai_client):
@@ -403,8 +407,7 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown subcommand `{_subcommand}` options are one of {list(sub_commands.keys())}")
     with open(config_file_path, 'r') as stream:
         _config = json.load(stream)
-    _oai_client = OpenAI(
-    )
+    _oai_client = OpenAI()
     main(
         config=_config,
         subcommand=_subcommand,

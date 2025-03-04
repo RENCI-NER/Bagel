@@ -67,7 +67,7 @@ async def annotate_chunk(list_of_entities , name_res_url, sapbert_url, node_norm
                 node_norm_url=node_norm_url,
                 session=client,
                 entity_type=None,
-                count=10
+                count=20
             ) for entity in list_of_entities
         ]
         return await asyncio.gather(*tasks)
@@ -90,6 +90,5 @@ if __name__ == "__main__":
             node_norm_url="https://nodenormalization-sri.renci.org/get_normalized_nodes",
         )
     )
-
 
 
