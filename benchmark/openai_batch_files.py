@@ -3,11 +3,13 @@ import os.path
 from json import JSONDecodeError
 
 import openai
+import asyncio
 
 from models import SynonymListContext, Entity
 from prompt import load_prompt_from_hub
 from chain import LLMHelper
 from glob import glob
+from util.ner_util import get_taxa_information
 
 # #############
 # # File prep functions
@@ -32,7 +34,7 @@ def get_abstracts(med_mentions_corpus_file_name):
     return pmid_abstracts
 
 
-def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_name, additional_model_args):
+def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_name, additional_model_args, nn_url):
     """
     for each entity in annotations file, it yields a json object of an openai request.
     :param pmid_abstracts: used for request identification
@@ -58,6 +60,9 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
                         "identifier": identifier,
                         "description": value.get("description", ""),
                         "entity_type": value.get("category", ""),
+                        "taxa": ", ".join(
+                            [value for key, value in asyncio.run(get_taxa_information(value["taxa"], nn_url)).items()]
+                        )
                     }) for identifier, value in annotation_obj['annotations'].items()
                 ]
             )
@@ -91,7 +96,8 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
             }
 
 
-def create_openai_batch_files(abstracts_file, annotations_file, output_path, prompt_name, model_name, model_args, chunk_size=50_000):
+def create_openai_batch_files(abstracts_file, annotations_file, output_path, prompt_name, model_name, model_args,
+                              chunk_size=50_000, nn_url=""):
     """
     Splits annotation file into entries of chunks of size chunk_size , ready for openai batch api.
     :param abstracts_file: file to get abstracts for context
@@ -119,7 +125,8 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
             annotations_file_name=annotations_file,
             prompt=prompt,
             model_name=model_name,
-            additional_model_args=model_args
+            additional_model_args=model_args,
+            nn_url=nn_url
         ):
         custom_id = i['custom_id']
         if custom_id not in req_ids_in_file:
@@ -346,6 +353,7 @@ def main(config, subcommand, oai_client):
     m_args = config['model_args']
     m_name = config['model_name']
     chunk_size = config['chunk_size']
+    nn_url = config['node_norm_url']
     if subcommand == 'start':
 
         create_openai_batch_files(
@@ -355,7 +363,8 @@ def main(config, subcommand, oai_client):
             prompt_name=prompt,
             model_name=m_name,
             model_args=m_args,
-            chunk_size=chunk_size
+            chunk_size=chunk_size,
+            nn_url=nn_url
         )
         start_batches(
             directory=output_dir,
@@ -391,7 +400,7 @@ if __name__ == '__main__':
 
     subparsers = parser.add_subparsers(dest="subparser_name")
     sub_commands = {
-        'start':'create batch files and start process',
+        'start': 'create batch files and start process',
         'status': 'Print status of openai batch processing',
         'process': 'Process openai response once complete'
     }

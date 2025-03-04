@@ -17,6 +17,7 @@ class Entity(BaseModel):
     description: str = Field("", description="Formal description(definition) of the Entity.")
     entity_type: str = Field("", description="Type of the Entity.")
     color_code: str = Field("", description="Color coding for mapping back items.")
+    taxa: str = Field("", description="Taxonomic label of the Entity.")
 
 class SynonymListContext(BaseModel):
     text: str = Field(..., description="Body of text containing entity.")
@@ -34,6 +35,7 @@ class SynonymListContext(BaseModel):
             string += f"\t- {synonym.label}"
             string += f" ({synonym.entity_type}) ({synonym.color_code})" if synonym.entity_type else ""
             string += f" : {synonym.description}" if synonym.description else ""
+            string += f" Applied in taxonomy {synonym.taxa}." if synonym.taxa else ""
             string += "\n"
         return string
 

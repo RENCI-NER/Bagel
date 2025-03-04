@@ -129,6 +129,34 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
     return final_results
 
 
+taxa_cache = {}
+
+async def get_taxa_information(taxa_ids: list, node_norm_url: str):
+    # Determine which taxa_ids are missing from the cache
+    missing_ids = [tid for tid in taxa_ids if tid not in taxa_cache]
+
+    if missing_ids:
+        async with AsyncClient() as client:
+            payload = {
+                "curies": missing_ids,
+                "conflate": True,
+                "description": True,
+                "drug_chemical_conflate": True
+            }
+            response = await client.post(node_norm_url, json=payload)
+            if response.status_code == 200:
+                response_json = response.json()
+                # Update cache with new results
+                for key, value in response_json.items():
+                    taxa_cache[key] = value.get('id', {}).get('label', '')
+            else:
+                # Optionally, handle non-200 responses
+                pass
+
+
+    # Build the result from the cache
+    return {tid: taxa_cache.get(tid, '') for tid in taxa_ids}
+
 
 async def main(entity):
     async with AsyncClient() as client:
