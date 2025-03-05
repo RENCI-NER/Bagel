@@ -148,7 +148,10 @@ async def get_taxa_information(taxa_ids: list, node_norm_url: str):
                 response_json = response.json()
                 # Update cache with new results
                 for key, value in response_json.items():
-                    taxa_cache[key] = value.get('id', {}).get('label', '')
+                    if value:
+                        taxa_cache[key] = value.get('id', {}).get('label', '')
+                    else:
+                        logger.warning("Could not get taxa {key} from {node_norm_url}".format(key=key))
             else:
                 # Optionally, handle non-200 responses
                 pass
