@@ -33,9 +33,9 @@ class SynonymListContext(BaseModel):
         string = "\n"
         for synonym in self.synonyms:
             string += f"\t- {synonym.label}"
-            string += f" ({synonym.entity_type}) ({synonym.color_code})" if synonym.entity_type else ""
+            string += f" [{synonym.taxa}] " if synonym.taxa else ""
+            string += f"({synonym.entity_type}) ({synonym.color_code})" if synonym.entity_type else ""
             string += f" : {synonym.description}" if synonym.description else ""
-            string += f" Applied in taxonomy {synonym.taxa}." if synonym.taxa else ""
             string += "\n"
         return string
 
