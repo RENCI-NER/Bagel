@@ -282,7 +282,8 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
     json_errors = 0
     hallucinations = 0
     processed_lines = 0
-    print(f"Remmapping : {batch_result_file} to {output_file_name}")
+    print(f"Remapping : {batch_result_file} to {output_file_name}")
+    processed_req_ids = []
     with open(annotation_file) as stream:
         for line in stream:
             annotation_obj = json.loads(line)
@@ -293,11 +294,12 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             processed_lines += 1
             batch_result = json.loads(line)
             req_id = batch_result["custom_id"]
+            processed_req_ids.append(req_id)
             try:
                 llm_response = json.loads(batch_result["response"]["body"]["choices"][0]["message"]["content"]
                                           .replace('```json', '')
                                           .replace('```', '')) #if isinstance(batch_result["response"]["body"]["choices"][0]["message"], str) else batch_result["response"]["body"]["choices"][0]["message"]
-            except JSONDecodeError as error :
+            except JSONDecodeError as error:
                 json_errors += 1
                 annotations_by_req_id[req_id]["llm_repsonse"] = llm_response
             # map color code to synonym ids
@@ -330,7 +332,8 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
                     print(f"error processing ", annotations_by_req_id[req_id]["annotations"][r["identifier"]])
 
     with open(output_file_name, 'w') as stream:
-        for req_id, annotation in annotations_by_req_id.items():
+        for req_id in processed_req_ids:
+            annotation = annotations_by_req_id[req_id]
             stream.write(json.dumps(annotation) + '\n')
         print(f"done processing {output_file_name}")
 
