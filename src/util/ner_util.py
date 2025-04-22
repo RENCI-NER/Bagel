@@ -1,10 +1,12 @@
 from httpx import AsyncClient
 from logutil import LoggingUtil
 import asyncio
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 logger = LoggingUtil.init_logging(name=__name__)
 
 
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None):
     payload = {
         "text": f"{entity}",
@@ -31,9 +33,11 @@ async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, en
             })
     else:
         logger.error(f"Error: sapbert call for {entity} , payload: {payload} returned code: {response.status_code}")
+        raise Exception(f"Error: sapbert call for {entity} , payload: {payload} returned code: {response.status_code}")
     return reformatted
 
 
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None):
     name_res_url = url + entity
     if entity_type is not None:
@@ -54,18 +58,19 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
         }
     else:
         logger.error(f"Error: nameres call for {entity} , url: {name_res_url} returned code: {response.status_code}")
+        raise Exception(f"Error: nameres call for {entity}")
     return formatted
 
 
 async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_norm_url: str, session: AsyncClient,
-                         entity_type=None, count=10):
+                         entity_type=None, count=20):
     get_entities_tasks = [
-        get_sapbert_ids(entity=entity,
-                        entity_type=entity_type,
-                        url=sapbert_url,
-                        count=count,
-                        session=session
-                        ),
+#         get_sapbert_ids(entity=entity,
+#                         entity_type=entity_type,
+#                         url=sapbert_url,
+#                         count=count,
+#                         session=session
+#                         ),
         get_nameres_ids(entity=entity,
                         entity_type=entity_type,
                         url=name_res_url,
@@ -75,7 +80,7 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
     ]
     response = await asyncio.gather(*get_entities_tasks)
     # merge them by identifier
-    all_curies = set(list(response[0].keys()) + list(response[1].keys()))
+    all_curies = set(list(response[0].keys())) # + list(response[1].keys()))
     merged = {}
     for curie in all_curies:
         merged[curie] = {
@@ -85,7 +90,7 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
             "nameres_score": -1
         }
         merged[curie].update(response[0].get(curie, {}))
-        merged[curie].update(response[1].get(curie, {}))
+#         merged[curie].update(response[1].get(curie, {}))
     nodenorm_payload = {
         "curies": list(merged.keys()),
         "conflate": True,
@@ -123,6 +128,37 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
                 final_results[x] = merged[x]
     return final_results
 
+
+taxa_cache = {}
+
+async def get_taxa_information(taxa_ids: list, node_norm_url: str):
+    # Determine which taxa_ids are missing from the cache
+    missing_ids = [tid for tid in taxa_ids if tid not in taxa_cache]
+
+    if missing_ids:
+        async with AsyncClient() as client:
+            payload = {
+                "curies": missing_ids,
+                "conflate": True,
+                "description": True,
+                "drug_chemical_conflate": True
+            }
+            response = await client.post(node_norm_url, json=payload)
+            if response.status_code == 200:
+                response_json = response.json()
+                # Update cache with new results
+                for key, value in response_json.items():
+                    if value:
+                        taxa_cache[key] = value.get('id', {}).get('label', '')
+                    else:
+                        logger.warning("Could not get taxa {key} from node norm".format(key=key))
+            else:
+                # Optionally, handle non-200 responses
+                pass
+
+
+    # Build the result from the cache
+    return {tid: taxa_cache.get(tid, '') for tid in taxa_ids}
 
 
 async def main(entity):
