@@ -90,7 +90,7 @@ These endpoints re-rank a user-provided list of synonyms/identifiers for an enti
 * **Request Body:**
 ```json
 {
-  "prompt_name": "rank-by-publication-v1",
+  "prompt_name": "bagel/ask_classes_no_system",
   "context": {
     "text": "The study focused on the effects of Aspirin on heart disease.",
     "entity": "Aspirin",
@@ -123,7 +123,7 @@ These endpoints re-rank a user-provided list of synonyms/identifiers for an enti
 
 ```json
 {
-  "prompt_name": "rank-by-publication-v1",
+  "prompt_name": "bagel/ask_classes_no_system",
   "context": {
     "text": "The study focused on the effects of Aspirin on heart disease.",
     "entity": "Aspirin",
