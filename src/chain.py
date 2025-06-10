@@ -31,9 +31,10 @@ def get_openai_llm(openai_config: OpenAIConfig):
     :return:
     """
     return ChatOpenAI(
-        api_key=openai_config.access_key,
+        api_key=openai_config.access_key or "EMPTY",
         organization=openai_config.organization,
         model=openai_config.llm_model_name,
+        base_url=openai_config.url,
         **openai_config.llm_model_args,
     )
 

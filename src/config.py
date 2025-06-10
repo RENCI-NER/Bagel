@@ -24,18 +24,19 @@ class PromptSettings(BaseModel):
 
 
 class OpenAIConfig(BaseModel):
-    llm_model_name: str = Field(default="gpt-4o-mini", description="Name of the model")
-    organization: str = Field(default="org id", description="OPENAI organization")
-    access_key: str = Field(default="access key", description="OPENAI access key")
+    llm_model_name: str = Field(default="google/gemma-3-12b-it", description="Name of the model")
+    organization: str = Field(default="", description="OPENAI organization")
+    access_key: str = Field(default="", description="OPENAI access key")
+    url: str = Field(default="http://vllm-server/v1", description="OpenAI compatible endpoint, leave blank for default")
     llm_model_args: dict = Field(default_factory=lambda: {
-        "top_p": 0,
+        "top_p": 0.1,
         "temperature": 0.1
     }, description="Arguments to pass to the model")
 
 
 class OLLAMAConfig(BaseModel):
-    llm_model_name: str = Field(default="llama3", description="Name of the model")
-    ollama_base_url: str = Field(default="https://ollama.apps.renci.org", description="URL of the OLLAMA instance")
+    llm_model_name: str = Field(default="llama3.1:latest", description="Name of the model")
+    ollama_base_url: str = Field(default="https://ollama:11434", description="URL of the OLLAMA instance")
     llm_model_args: dict = Field(default_factory=dict, description="Arguments to pass to the model")
 
 

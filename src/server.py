@@ -1,31 +1,39 @@
-from langserve import CustomUserType, add_routes
-from config import settings, OpenAIConfig, OLLAMAConfig, logger
-from chain import ChainFactory, LLMHelper, get_ollama_llm, get_openai_llm
+from langserve import CustomUserType
+from config import OpenAIConfig, OLLAMAConfig
+from chain import LLMHelper, get_ollama_llm, get_openai_llm
 import prompt
 from models import SynonymListContext, BaseModel, Field, Entity
 from util.ner_util import get_entity_ids
-from typing import List
 import fastapi
 import httpx
 
 
-app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranking prompts against pre-configured LLMs")
+app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranking prompts against pre-configured LLMs"
+                                                            "**NOTE**: Ollama endpoints might need custom prompt as "
+                                                            "JSON parsing is not fully functional.")
+"""doc strings"""
+PROMPT_NAME = ("Prompts are currently hosted on smith.langchain.com (https://smith.langchain.com/hub/bagel/)."
+              "Prompt name is name for a public prompt hosted in smith.langchain.com.\n")
+OPENAI_INSTRUCTIONS = ("To use OPENAI endpoints instead of default vllm please set config.url to empty string and pass in"
+                       "appropriate openai credentials.")
+
+
 
 
 class Query(CustomUserType):
-    abstract: str
-    term: str
-    synonym_list: str
+    prompt_name: str
+    text: str
+    entity: str
+    entity_type: str = ""
+    name_res_url: str = "https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&limit=10&string="
+    sapbert_url: str = "https://sap-qdrant.apps.renci.org/annotate/"
+    nodenorm_url: str = "https://nodenormalization-sri.renci.org/get_normalized_nodes"
 
 
-class OllamaQuery(BaseModel):
+class OllamaQuery(Query):
     prompt_name: str
     context: SynonymListContext
     config: OLLAMAConfig = Field(default=OLLAMAConfig())
-
-
-class BatchOllamaQuery(OllamaQuery):
-    context: List[SynonymListContext]
 
 
 class OpenAIQuery(BaseModel):
@@ -34,25 +42,17 @@ class OpenAIQuery(BaseModel):
     config: OpenAIConfig = Field(default=OpenAIConfig())
 
 
-class BatchOpenAIQuery(OpenAIQuery):
-    context: List[SynonymListContext]
-
-
-class OpenAICurieQuery(BaseModel):
-    prompt_name: str
-    text: str
-    entity: str
-    entity_type: str = ""
+class OpenAICurieQuery(Query):
     config: OpenAIConfig = Field(default=OpenAIConfig())
-    name_res_url: str = "https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&limit=10&string="
-    sapbert_url: str = "https://sap-qdrant.apps.renci.org/annotate/"
-    nodenorm_url: str = "https://nodenormalization-sri.renci.org/get_normalized_nodes"
+
+class OllamaCurieQuery(Query):
+    config: OLLAMAConfig = Field(default=OLLAMAConfig())
 
 
-@app.post('/find_curies_openai')
-async def find_curies(query: OpenAICurieQuery):
+
+async def resolve_entities(query: Query, llm, count=20):
+    """ Helper function to resolve ids and map back to LLM response."""
     async with httpx.AsyncClient() as client:
-        # collect results from name-res , and sap-bert
         final_results = await get_entity_ids(
             entity=query.entity,
             entity_type=query.entity_type,
@@ -60,10 +60,8 @@ async def find_curies(query: OpenAICurieQuery):
             name_res_url=query.name_res_url,
             node_norm_url=query.nodenorm_url,
             session=client,
-            count=20
+            count=count
         )
-        llm = get_openai_llm(query.config)
-        _prompt = prompt.load_prompt_from_hub(query.prompt_name)
         id_list = [
             Entity(**{
                 "label": value["name"],
@@ -77,6 +75,7 @@ async def find_curies(query: OpenAICurieQuery):
             entity=query.entity,
             synonyms=id_list
         )
+        _prompt = prompt.load_prompt_from_hub(query.prompt_name)
         result = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=context)
         remapped = {}
         for r in result:
@@ -85,46 +84,44 @@ async def find_curies(query: OpenAICurieQuery):
                 'synonym_type': r['synonym_type']
             })
             remapped[r['identifier']] = final
-
         return remapped
 
-@app.post('/group_synonyms_ollama')
-async def group_synonyms_ollama(query: OllamaQuery):
+
+@app.post('/find_curies_openai', description="This will make requests to Name resolver and Sapbert to find "
+                                             "candidate identifiers for an entity in the text, and will perform LLM"
+                                             "augmented reranking(classification)" + PROMPT_NAME + OPENAI_INSTRUCTIONS)
+async def find_curies(query: OpenAICurieQuery):
+    # collect results from name-res , and sap-bert
+    llm = get_openai_llm(query.config)
+    remapped = await resolve_entities(query, llm, count=20)
+    return remapped
+
+
+@app.post('/find_curies_ollama', description="This will make requests to Name resolver and Sapbert to find "
+                                             "candidate identifiers for an entity in the text, and will perform LLM"
+                                             "augmented reranking(classification)" + PROMPT_NAME )
+async def find_curies(query: OllamaCurieQuery):
+    # collect results from name-res , and sap-bert
     llm = get_ollama_llm(query.config)
-    _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    remapped = await resolve_entities(query, llm, count=20)
+    return remapped
 
-
-@app.post('/batch_group_synonyms_ollama')
-async def batch_group_synonyms_ollama(query: BatchOllamaQuery):
-    llm = get_ollama_llm(query.config)
-    _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return await LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
-
-
-@app.post('/group_synonyms_openai')
+@app.post('/group_synonyms_openai', description="Expects a list of synonyms and will perform LLM augmented "
+                                                "reranking(classification) for the provided list for the given entity."
+                                                + PROMPT_NAME + OPENAI_INSTRUCTIONS)
 async def group_synonyms_openai(query: OpenAIQuery):
     llm = get_openai_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
     return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
 
 
-@app.post('/batch_group_synonyms_openai', description="Batch call multiple synonyms. "
-                                                      "Note this is different from openai batch api.")
-async def batch_group_synonyms_openai(query: BatchOpenAIQuery):
-    llm = get_openai_llm(query.config)
+@app.post('/group_synonyms_ollama', description="Expects a list of synonyms and will perform LLM augmented "
+                                                "reranking(classification) for the provided list for the given entity."
+                                                + PROMPT_NAME)
+async def group_synonyms_ollama(query: OllamaQuery):
+    llm = get_ollama_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return await LLMHelper.ask_batch(prompt=_prompt, llm=llm, synonym_contexts=query.context)
-
-# add langserve endpoints
-if settings.langServe:
-    for chain in ChainFactory.get_all_chains():
-        add_routes(
-            app,
-            chain,
-            path=f"/{chain.name}",
-            input_type=Query
-        )
+    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
 
 
 if __name__ == "__main__":
