@@ -11,3 +11,4 @@ langserve[all]==0.2.2
 fastapi==0.111.0
 git+https://github.com/RENCI-NER/benchmarks.git
 tenacity
+httpx==0.27.2
