@@ -53,7 +53,10 @@ These endpoints first query external services (Name Resolver, Sapbert) to genera
   "entity": "Aspirin",
   "entity_type": "biolink:ChemicalEntity",
   "config": {
-    "model": "gpt-4o", "organization": "xxx" , "access_key" : "xxx", "llm_model_args": "...."
+    "model": "gpt-4o", 
+    "organization": "xxx" , 
+    "access_key" : "xxx", 
+    "llm_model_args": {}
   }
 }
 ```
@@ -68,7 +71,9 @@ These endpoints first query external services (Name Resolver, Sapbert) to genera
   "entity": "Aspirin",
   "entity_type": "biolink:ChemicalEntity",
   "config": {
-    "model": "llama3"
+    "model": "llama3.1",
+    "ollama_base_url": "https://ollama.apps.renci.org",
+    "llm_model_args": {}
   }
 }
 
@@ -103,7 +108,10 @@ These endpoints re-rank a user-provided list of synonyms/identifiers for an enti
     ]
   },
   "config": {
-    "model": "gpt-4o"
+    "model": "gpt-4o", 
+    "organization": "xxx" , 
+    "access_key" : "xxx", 
+    "llm_model_args": {}
   }
 }
 ```
