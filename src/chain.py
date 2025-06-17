@@ -66,9 +66,12 @@ class LLMHelper:
             entity.color_code: entity for entity in synonym_list
         }
         entities = []
+        logger.info(llm_response)
         for item in llm_response:
-            synonym_type = item['synonym_type']
-            entity = by_color[item['color_code']]
+            synonym_type = item.get('synonym_type') or item.get('synonymType', None)
+            if not synonym_type:
+                raise ValueError('Undefined synonym type from LLM response!')
+            entity = by_color[item.get('color_code') or item.get('colorCode', None)]
             final = entity.dict()
             final.update({
                 "synonym_type": synonym_type

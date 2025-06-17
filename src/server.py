@@ -9,6 +9,7 @@ from models import SynonymListContext, BaseModel, Field, Entity
 from util.ner_util import get_entity_ids
 import fastapi
 import httpx
+import traceback
 
 
 app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranking prompts against pre-configured LLMs"
@@ -104,7 +105,9 @@ async def find_curies(query: OpenAICurieQuery):
     try:
         remapped = await resolve_entities(query, llm, count=20)
     except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
+        trb_str = traceback.format_exc()
+        print(trb_str)
+        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
     return remapped
 
 
@@ -117,7 +120,9 @@ async def find_curies(query: OllamaCurieQuery):
     try:
         remapped = await resolve_entities(query, llm, count=20)
     except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
+        trb_str = traceback.format_exc()
+        print(trb_str)
+        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
     return remapped
 
 @app.post('/group_synonyms_openai', description="Expects a list of synonyms and will perform LLM augmented "
@@ -129,7 +134,9 @@ async def group_synonyms_openai(query: OpenAIQuery):
     try:
         response =  await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
+        trb_str = traceback.format_exc()
+        print(trb_str)
+        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
     return response
 
 
@@ -142,7 +149,9 @@ async def group_synonyms_ollama(query: OllamaQuery):
     try:
         response = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
-        return JSONResponse({'error': str(e)}, status_code=500)
+        trb_str = traceback.format_exc()
+        print(trb_str)
+        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
     return response
 
 

@@ -50,11 +50,12 @@
             <div id="findCuries">
                 <div class="mb-6">
                     <h2 class="text-2xl font-semibold text-gray-900">Find CURIEs with OpenAI</h2>
-                <div>
                     <div>
-                        <a href="/docs" class="text-blue-500">API docs</a>
+                        <div>
+                            <a href="/docs" class="text-blue-500">API docs</a>
+                        </div>
+                        <p class="text-gray-500 mt-1">Provide text and an entity to find and re-rank candidate identifiers.</p>
                     </div>
-                    <p class="text-gray-500 mt-1">Provide text and an entity to find and re-rank candidate identifiers.</p>
                 </div>
 
                 <div class="space-y-6">
@@ -66,11 +67,7 @@
                         <label for="curie-entity" class="block text-sm font-medium text-gray-700">Entity</label>
                         <input type="text" id="curie-entity" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="The specific entity mentioned in the text. e.g., Fanconi anemia">
                     </div>
-                    <div>
-                        <label for="curie-prompt" class="block text-sm font-medium text-gray-700">Prompt Name</label>
-                        <input type="text" id="curie-prompt" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" value="bagel/ask_classes_no_system:f762333a">
-                        <p class="mt-2 text-xs text-gray-500">Public prompt hosted on <a href="https://smith.langchain.com" class="text-blue-500">Langchain hub</a>. Default prompt can be found (<a href="https://smith.langchain.com/hub/bagel/ask_classes_no_system/f762333a?tab=1" class="text-blue-500">here</a>)</p>
-                    </div>
+
                 </div>
 
                 <!-- OpenAI Config Section -->
@@ -79,6 +76,13 @@
                         <summary class="cursor-pointer font-medium text-indigo-600 group-hover:text-indigo-800">Advanced Model Settings</summary>
                         <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
                             <!-- New Fields -->
+                            <div>
+                                <label for="curie-prompt" class="block text-sm font-medium text-gray-700">Prompt Name</label>
+                                <select id="curie-prompt" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                    <option value="">Loading prompts...</option>
+                                </select>
+                                <p class="mt-2 text-xs text-gray-500">Public prompt hosted on <a href="https://smith.langchain.com" class="text-blue-500">Langchain hub</a>. Default prompt can be found (<a href="https://smith.langchain.com/hub/bagel/" class="text-blue-500">here</a>)</p>
+                            </div>
                             <div>
                                 <label for="entity-type" class="block text-xs font-medium text-gray-600">Entity Type (optional)</label>
                                 <input type="text" id="entity-type" placeholder="e.g., disease, gene" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
@@ -159,6 +163,40 @@
 
         // Add event listener to the main action button
         document.getElementById('submit-btn').addEventListener('click', handleFindCuries);
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const selectElement = document.getElementById('curie-prompt');
+            async function fetchPromptsFromHub() {
+                // In a real scenario, you would use fetch() with the correct API URL.
+                // For example:
+                // const response = await fetch('https://api.langchain.com/hub/bagel/prompts');
+                // const prompts = await response.json();
+                // return prompts;
+
+                // For this example, we will use mock data.
+                return [
+                    { id: 'bagel/ask_classes_no_system', name: 'ask_classes_no_system' },
+                    { id: 'bagel/ask_classes_no_system_simplified', name: 'ask_classes_no_system_simplified' },
+                    { id: 'bagel/ask_classes', name: 'ask_classes' }
+                ];
+            }
+
+            fetchPromptsFromHub().then(prompts => {
+                // Clear the loading option
+                selectElement.innerHTML = '';
+                // Populate the select box with the fetched prompts
+                prompts.forEach(prompt => {
+                    const option = document.createElement('option');
+                    option.value = prompt.id;
+                    option.textContent = prompt.name;
+                    selectElement.appendChild(option);
+                });
+            }).catch(error => {
+                console.error('Failed to load prompts:', error);
+                selectElement.innerHTML = '<option value="">Failed to load prompts</option>';
+            });
+        });
 
         async function makeApiCall(endpoint, payload) {
             // This script now builds the payload according to the latest schema.
