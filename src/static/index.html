@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bagel API Client</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        pre::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        pre::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        pre::-webkit-scrollbar-thumb {
+            background-color: #4b5563;
+            border-radius: 20px;
+            border: 2px solid #1f2937;
+        }
+        /* Custom number input styles */
+        input[type='number']::-webkit-inner-spin-button,
+        input[type='number']::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type='number'] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto max-w-2xl p-4 sm:p-6 lg:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-indigo-600">Bagel API Server</h1>
+            <p class="mt-2 text-lg text-gray-600">A user-friendly interface to find and re-rank CURIEs using Large language models.</p>
+        </header>
+
+        <div class="bg-white p-6 rounded-2xl shadow-lg">
+
+            <!-- Find Curies Content -->
+            <div id="findCuries">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-900">Find CURIEs with OpenAI</h2>
+                <div>
+                    <div>
+                        <a href="/docs" class="text-blue-500">API docs</a>
+                    </div>
+                    <p class="text-gray-500 mt-1">Provide text and an entity to find and re-rank candidate identifiers.</p>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <label for="curie-text" class="block text-sm font-medium text-gray-700">Text</label>
+                        <textarea id="curie-text" rows="4" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Enter the sentence or paragraph containing the entity. For example: 'This study focuses on Fanconi anemia, a rare genetic disorder.'"></textarea>
+                    </div>
+                    <div>
+                        <label for="curie-entity" class="block text-sm font-medium text-gray-700">Entity</label>
+                        <input type="text" id="curie-entity" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="The specific entity mentioned in the text. e.g., Fanconi anemia">
+                    </div>
+                    <div>
+                        <label for="curie-prompt" class="block text-sm font-medium text-gray-700">Prompt Name</label>
+                        <input type="text" id="curie-prompt" class="mt-1 block w-full rounded-md border border-black-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" value="bagel/ask_classes_no_system:f762333a">
+                        <p class="mt-2 text-xs text-gray-500">Public prompt hosted on <a href="https://smith.langchain.com" class="text-blue-500">Langchain hub</a>. Default prompt can be found (<a href="https://smith.langchain.com/hub/bagel/ask_classes_no_system/f762333a?tab=1" class="text-blue-500">here</a>)</p>
+                    </div>
+                </div>
+
+                <!-- OpenAI Config Section -->
+                <div class="mt-6">
+                    <details class="group">
+                        <summary class="cursor-pointer font-medium text-indigo-600 group-hover:text-indigo-800">Advanced Model Settings</summary>
+                        <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+                            <!-- New Fields -->
+                            <div>
+                                <label for="entity-type" class="block text-xs font-medium text-gray-600">Entity Type (optional)</label>
+                                <input type="text" id="entity-type" placeholder="e.g., disease, gene" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="name-res-url" class="block text-xs font-medium text-gray-600">Name Resolver URL</label>
+                                <input type="text" id="name-res-url" value="https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&limit=10&string=" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="sapbert-url" class="block text-xs font-medium text-gray-600">Sapbert URL</label>
+                                <input type="text" id="sapbert-url" value="https://sap-qdrant.apps.renci.org/annotate/" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="nodenorm-url" class="block text-xs font-medium text-gray-600">Node Normalization URL</label>
+                                <input type="text" id="nodenorm-url" value="https://nodenormalization-sri.renci.org/get_normalized_nodes" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <hr class="border-gray-300"/>
+                            <h4 class="text-sm font-semibold text-gray-800 pt-2">Configuration</h4>
+                             <div>
+                                <label for="openai-curie-model" class="block text-xs font-medium text-gray-600">Model Name</label>
+                                <input type="text" id="openai-curie-model" value="google/gemma-3-12b-it" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="openai-curie-url" class="block text-xs font-medium text-gray-600">API URL (leave blank for default OpenAI)</label>
+                                <input type="text" id="openai-curie-url" value="http://vllm-server/v1" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="openai-curie-key" class="block text-xs font-medium text-gray-600">Openai Access Key</label>
+                                <input type="password" id="openai-curie-key" placeholder="Enter your OpenAI or compatible API Key..." class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
+                                <label for="openai-org-id" class="block text-xs font-medium text-gray-600">Openai Organization ID</label>
+                                <input type="password" id="openai-org-id" placeholder="Enter your OpenAI organization id" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <hr class="border-gray-300"/>
+                             <h4 class="text-sm font-semibold text-gray-800 pt-2">LLM Model Arguments</h4>
+                             <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="temperature" class="block text-xs font-medium text-gray-600">Temperature</label>
+                                    <input type="number" id="temperature" value="0.1" step="0.1" min="0" max="2" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                                </div>
+                                <div>
+                                    <label for="top-p" class="block text-xs font-medium text-gray-600">Top P</label>
+                                    <input type="number" id="top-p" value="0.1" step="0.1" min="0" max="1" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                                </div>
+                             </div>
+                        </div>
+                    </details>
+                </div>
+
+
+                <div class="mt-8 text-right">
+                    <button id="submit-btn" class="btn inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Find CURIEs</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Area -->
+        <div class="mt-8">
+            <h3 class="text-xl font-semibold mb-3">Results</h3>
+            <div class="bg-gray-800 rounded-xl shadow-lg">
+                <div class="flex items-center justify-between px-4 py-2 border-b border-gray-700">
+                    <span class="text-xs font-medium text-gray-400">API Response</span>
+                    <button id="copy-btn" class="text-gray-400 hover:text-white" title="Copy to clipboard">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    </button>
+                </div>
+                <pre id="results-output" class="p-4 text-sm text-gray-200 overflow-x-auto">API responses will be shown here...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- JAVASCRIPT LOGIC FOR INTERACTIVITY ---
+
+        // --- API Call and Results Handling ---
+        const resultsOutput = document.getElementById('results-output');
+
+        // Add event listener to the main action button
+        document.getElementById('submit-btn').addEventListener('click', handleFindCuries);
+
+        async function makeApiCall(endpoint, payload) {
+            // This script now builds the payload according to the latest schema.
+            // The API call itself is still mocked for demonstration.
+            // You can replace the mocked part with a real `fetch` call to your server.
+
+            const submitButton = document.getElementById('submit-btn');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Loading...';
+            resultsOutput.textContent = 'Sending request...';
+
+            try {
+                // To make a real API call, uncomment the following section and replace
+                // the base URL with your server's address.
+                const fullUrl = window.location.href;
+                const response = await fetch(`${fullUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP error! status: ${response.status} | ${errorText}`);
+                }
+                const data = await response.json();
+
+
+                // // Mocking the API call for demonstration purposes:
+                // console.log("Calling endpoint:", endpoint);
+                // console.log("With payload:", payload);
+                // await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network delay
+                // const data = { success: true, message: "This is a mocked API response.", endpoint, payload }; // Mock response
+
+                resultsOutput.textContent = JSON.stringify(data, null, 2);
+
+            } catch (error) {
+                resultsOutput.textContent = `Error: ${error.message}\n\nPayload Sent:\n${JSON.stringify(payload, null, 2)}`;
+                console.error('API Call Failed:', error);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Find CURIEs';
+            }
+        }
+
+        function handleFindCuries() {
+            const endpoint = 'find_curies_openai';
+
+            // Validate primary inputs
+            const text = document.getElementById('curie-text').value;
+            const entity = document.getElementById('curie-entity').value;
+            const prompt_name = document.getElementById('curie-prompt').value;
+
+            if (!text || !entity || !prompt_name) {
+                alert('Please fill in all required fields: Text, Entity, and Prompt Name.');
+                return;
+            }
+
+            const payload = {
+                prompt_name: prompt_name,
+                text: text,
+                entity: entity,
+                entity_type: document.getElementById('entity-type').value || "",
+                name_res_url: document.getElementById('name-res-url').value,
+                sapbert_url: document.getElementById('sapbert-url').value,
+                nodenorm_url: document.getElementById('nodenorm-url').value,
+                config: {
+                    llm_model_name: document.getElementById('openai-curie-model').value,
+                    organization: document.getElementById('openai-org-id').value, // This field is in the spec, keeping it empty by default
+                    access_key: document.getElementById('openai-curie-key').value,
+                    url: document.getElementById('openai-curie-url').value,
+                    llm_model_args: {
+                        temperature: parseFloat(document.getElementById('temperature').value),
+                        top_p: parseFloat(document.getElementById('top-p').value)
+                    }
+                }
+            };
+
+            makeApiCall(endpoint, payload);
+        }
+
+        // Copy to clipboard
+        document.getElementById('copy-btn').addEventListener('click', () => {
+            const textToCopy = resultsOutput.textContent;
+            if (!textToCopy || textToCopy === 'API responses will be shown here...') {
+                return;
+            }
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const btn = document.getElementById('copy-btn');
+                const originalTitle = btn.title;
+                btn.title = 'Copied!';
+                setTimeout(() => { btn.title = originalTitle; }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy results to clipboard.');
+            });
+        });
+
+    </script>
+</body>
+</html>

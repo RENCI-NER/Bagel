@@ -1,6 +1,7 @@
 from langserve import CustomUserType
 from config import OpenAIConfig, OLLAMAConfig
 from chain import LLMHelper, get_ollama_llm, get_openai_llm
+from fastapi.responses import FileResponse, JSONResponse
 import prompt
 from models import SynonymListContext, BaseModel, Field, Entity
 from util.ner_util import get_entity_ids
@@ -87,13 +88,20 @@ async def resolve_entities(query: Query, llm, count=20):
         return remapped
 
 
+@app.get("/", include_in_schema=False)
+async def index():
+    return FileResponse("static/index.html")
+
 @app.post('/find_curies_openai', description="This will make requests to Name resolver and Sapbert to find "
                                              "candidate identifiers for an entity in the text, and will perform LLM"
                                              "augmented reranking(classification)" + PROMPT_NAME + OPENAI_INSTRUCTIONS)
 async def find_curies(query: OpenAICurieQuery):
     # collect results from name-res , and sap-bert
     llm = get_openai_llm(query.config)
-    remapped = await resolve_entities(query, llm, count=20)
+    try:
+        remapped = await resolve_entities(query, llm, count=20)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
     return remapped
 
 
@@ -103,7 +111,10 @@ async def find_curies(query: OpenAICurieQuery):
 async def find_curies(query: OllamaCurieQuery):
     # collect results from name-res , and sap-bert
     llm = get_ollama_llm(query.config)
-    remapped = await resolve_entities(query, llm, count=20)
+    try:
+        remapped = await resolve_entities(query, llm, count=20)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
     return remapped
 
 @app.post('/group_synonyms_openai', description="Expects a list of synonyms and will perform LLM augmented "
@@ -112,7 +123,11 @@ async def find_curies(query: OllamaCurieQuery):
 async def group_synonyms_openai(query: OpenAIQuery):
     llm = get_openai_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    try:
+        response =  await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+    return response
 
 
 @app.post('/group_synonyms_ollama', description="Expects a list of synonyms and will perform LLM augmented "
@@ -121,7 +136,11 @@ async def group_synonyms_openai(query: OpenAIQuery):
 async def group_synonyms_ollama(query: OllamaQuery):
     llm = get_ollama_llm(query.config)
     _prompt = prompt.load_prompt_from_hub(query.prompt_name)
-    return await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    try:
+        response = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+    return response
 
 
 if __name__ == "__main__":

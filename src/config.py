@@ -36,7 +36,7 @@ class OpenAIConfig(BaseModel):
 
 class OLLAMAConfig(BaseModel):
     llm_model_name: str = Field(default="llama3.1:latest", description="Name of the model")
-    ollama_base_url: str = Field(default="https://ollama:11434", description="URL of the OLLAMA instance")
+    ollama_base_url: str = Field(default="http://ollama:11434", description="URL of the OLLAMA instance")
     llm_model_args: dict = Field(default_factory=dict, description="Arguments to pass to the model")
 
 

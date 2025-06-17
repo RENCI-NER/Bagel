@@ -59,6 +59,11 @@ config: |
 
 ingress:
   enabled: true
+  auth:
+    enabled: false
+    username: "**"
+    password: "**"
+    secret: 'bagel-bagel-htpasswd'
   className: ""
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
