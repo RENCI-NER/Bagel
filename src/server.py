@@ -1,3 +1,5 @@
+import os.path
+
 from langserve import CustomUserType
 from config import OpenAIConfig, OLLAMAConfig
 from chain import LLMHelper, get_ollama_llm, get_openai_llm
@@ -90,7 +92,8 @@ async def resolve_entities(query: Query, llm, count=20):
 
 @app.get("/", include_in_schema=False)
 async def index():
-    return FileResponse("static/index.html")
+    os.path.dirname(__file__)
+    return FileResponse(f"{os.path.dirname(__file__)}/static/index.html")
 
 @app.post('/find_curies_openai', description="This will make requests to Name resolver and Sapbert to find "
                                              "candidate identifiers for an entity in the text, and will perform LLM"
