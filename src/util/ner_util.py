@@ -79,11 +79,14 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
                         session=session
                         )
     ]
-    response = await asyncio.gather(*get_entities_tasks)
-    logger.info(f"Combined response: {json.dumps(response, indent=2)}")
+    responses = await asyncio.gather(*get_entities_tasks)
+    logger.debug(f"Combined responses: {json.dumps(responses, indent=2)}")
+
     # merge them by identifier
-    all_curies = set(list(response[0].keys()) + list(response[1].keys()))
-    logger.info(f"All curies: {all_curies}")
+    all_curies = set()
+    for response in responses:
+        all_curies.update(response.keys())
+    logger.debug(f"All curies: {all_curies}")
     merged = {}
     for curie in all_curies:
         merged[curie] = {
@@ -92,10 +95,10 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
             "nameres_score": -1,
             "sapbert_score": -1,
         }
-        merged[curie].update(response[0].get(curie, {}))
-        merged[curie].update(response[1].get(curie, {}))
+        for response in responses:
+            merged[curie].update(response.get(curie, {}))
 
-    logger.info(f"Merged: {json.dumps(merged, indent=2)}")
+    logger.debug(f"Merged: {json.dumps(merged, indent=2)}")
 
     nodenorm_payload = {
         "curies": list(merged.keys()),
