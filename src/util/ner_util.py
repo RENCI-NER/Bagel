@@ -51,8 +51,8 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
         formatted = {
             f"{x['curie']}": {
                 "name": x["label"],
-                "nameres_rank": index + 1,
-                "nameres_score": x["score"],
+                "name_res_rank": index + 1,
+                "name_res_score": x["score"],
                 "taxa": x["taxa"],
                 "category": x["types"][0]
             } for index, x in enumerate(json_data)
@@ -90,9 +90,9 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
     merged = {}
     for curie in all_curies:
         merged[curie] = {
-            "nameres_rank": -1,
+            "name_res_rank": -1,
             "sapbert_rank": -1,
-            "nameres_score": -1,
+            "name_res_score": -1,
             "sapbert_score": -1,
         }
         for response in responses:
