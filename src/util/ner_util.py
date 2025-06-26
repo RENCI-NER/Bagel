@@ -1,4 +1,5 @@
 from httpx import AsyncClient
+import json
 from logutil import LoggingUtil
 import asyncio
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -50,7 +51,7 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
         formatted = {
             f"{x['curie']}": {
                 "name": x["label"],
-                "name_res_rank": index + 1,
+                "nameres_rank": index + 1,
                 "nameres_score": x["score"],
                 "taxa": x["taxa"],
                 "category": x["types"][0]
@@ -79,18 +80,23 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
                         )
     ]
     response = await asyncio.gather(*get_entities_tasks)
+    logger.info(f"Combined response: {json.dumps(response, indent=2)}")
     # merge them by identifier
-    all_curies = set(list(response[0].keys())) # + list(response[1].keys()))
+    all_curies = set(list(response[0].keys()) + list(response[1].keys()))
+    logger.info(f"All curies: {all_curies}")
     merged = {}
     for curie in all_curies:
         merged[curie] = {
-            "name_res_rank": -1,
+            "nameres_rank": -1,
             "sapbert_rank": -1,
+            "nameres_score": -1,
             "sapbert_score": -1,
-            "nameres_score": -1
         }
         merged[curie].update(response[0].get(curie, {}))
-#         merged[curie].update(response[1].get(curie, {}))
+        merged[curie].update(response[1].get(curie, {}))
+
+    logger.info(f"Merged: {json.dumps(merged, indent=2)}")
+
     nodenorm_payload = {
         "curies": list(merged.keys()),
         "conflate": True,
@@ -125,6 +131,7 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
         # For some reason if these are not normalizing let's just add them into the final list
         for x in merged:
             if x not in added:
+                logger.warning(f"Could not normalize {x}, adding to the final results: {merged[x]}")
                 final_results[x] = merged[x]
     return final_results
 
