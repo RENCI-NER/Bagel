@@ -88,6 +88,10 @@
                                 <input type="text" id="entity-type" placeholder="e.g., disease, gene" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
                             </div>
                             <div>
+                                <label for="entity-count" class="block text-xs font-medium text-gray-600">Entity Count (Limit of results from each Entity linker Nameres/sapbert )</label>
+                                <input type="text" id="entity-count" value="10" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
+                            </div>
+                            <div>
                                 <label for="name-res-url" class="block text-xs font-medium text-gray-600">Name Resolver URL</label>
                                 <input type="text" id="name-res-url" value="https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&limit=10&string=" class="mt-1 block w-full text-sm rounded-md border border-gray-300">
                             </div>
@@ -259,6 +263,7 @@
                 text: text,
                 entity: entity,
                 entity_type: document.getElementById('entity-type').value || "",
+                entity_count: document.getElementById('entity-count').value || 10,
                 name_res_url: document.getElementById('name-res-url').value,
                 sapbert_url: document.getElementById('sapbert-url').value,
                 nodenorm_url: document.getElementById('nodenorm-url').value,
