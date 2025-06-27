@@ -28,6 +28,7 @@ class Query(CustomUserType):
     prompt_name: str
     text: str
     entity: str
+    entity_count: int = 10
     entity_type: str = ""
     name_res_url: str = "https://name-resolution-sri.renci.org/lookup?autocomplete=false&offset=0&limit=10&string="
     sapbert_url: str = "https://sap-qdrant.apps.renci.org/annotate/"
@@ -54,7 +55,7 @@ class OllamaCurieQuery(Query):
 
 
 
-async def resolve_entities(query: Query, llm, count=20):
+async def resolve_entities(query: Query, llm):
     """ Helper function to resolve ids and map back to LLM response."""
     async with httpx.AsyncClient() as client:
         final_results = await get_entity_ids(
@@ -64,7 +65,7 @@ async def resolve_entities(query: Query, llm, count=20):
             name_res_url=query.name_res_url,
             node_norm_url=query.nodenorm_url,
             session=client,
-            count=count
+            count=query.entity_count
         )
         id_list = [
             Entity(**{
@@ -103,7 +104,7 @@ async def find_curies(query: OpenAICurieQuery):
     # collect results from name-res , and sap-bert
     llm = get_openai_llm(query.config)
     try:
-        remapped = await resolve_entities(query, llm, count=20)
+        remapped = await resolve_entities(query, llm)
     except Exception as e:
         trb_str = traceback.format_exc()
         print(trb_str)
@@ -118,7 +119,7 @@ async def find_curies(query: OllamaCurieQuery):
     # collect results from name-res , and sap-bert
     llm = get_ollama_llm(query.config)
     try:
-        remapped = await resolve_entities(query, llm, count=20)
+        remapped = await resolve_entities(query, llm)
     except Exception as e:
         trb_str = traceback.format_exc()
         print(trb_str)
