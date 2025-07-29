@@ -39,13 +39,12 @@ async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, en
 
 
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
-async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None):
+async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None, nn_url: str = None):
     name_res_url = url + entity
     if entity_type is not None:
         name_res_url += f"&biolink_type={entity_type}"
     name_res_url += f"&limit={count}"
     response = await session.get(name_res_url)
-    formatted = {}
     if response.status_code == 200:
         json_data = response.json()
         formatted = {
@@ -53,7 +52,10 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
                 "name": x["label"],
                 "name_res_rank": index + 1,
                 "name_res_score": x["score"],
-                "taxa": x["taxa"],
+                "taxa": ", ".join(
+                            [value for key, value in (await get_taxa_information(x["taxa"], nn_url)).items()]
+                        ),
+                "taxa_id": x["taxa"],
                 "category": x["types"][0]
             } for index, x in enumerate(json_data)
         }
@@ -75,6 +77,7 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
         get_nameres_ids(entity=entity,
                         entity_type=entity_type,
                         url=name_res_url,
+                        nn_url=node_norm_url,
                         count=count,
                         session=session
                         )

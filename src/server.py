@@ -73,6 +73,7 @@ async def resolve_entities(query: Query, llm):
                 "identifier": identifier,
                 "description": value.get("description", ""),
                 "entity_type": value.get("category", ""),
+                "taxa": value.get("taxa", "")
             }) for identifier, value in final_results.items()
         ]
         if not len(id_list):
