@@ -75,6 +75,8 @@ async def resolve_entities(query: Query, llm):
                 "entity_type": value.get("category", ""),
             }) for identifier, value in final_results.items()
         ]
+        if not len(id_list):
+            raise ValueError(f"No entities resolved found for term {query.entity} of type {query.entity_type}.")
         context: SynonymListContext = SynonymListContext(
             text=query.text,
             entity=query.entity,
