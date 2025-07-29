@@ -30,7 +30,7 @@ class OpenAIConfig(BaseModel):
     url: str = Field(default="http://vllm-server/v1", description="OpenAI compatible endpoint, leave blank for default")
     llm_model_args: dict = Field(default_factory=lambda: {
         "top_p": 0.1,
-        "temperature": 0.1
+        "temperature": 0
     }, description="Arguments to pass to the model")
 
 
