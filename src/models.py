@@ -18,6 +18,7 @@ class Entity(BaseModel):
     entity_type: str = Field("", description="Type of the Entity.")
     color_code: str = Field("", description="Color coding for mapping back items.")
     taxa: str = Field("", description="Taxonomic label of the Entity.")
+    taxa_ids: list = Field([], description="Taxonomic identifiers of the Entity.")
 
 class SynonymListContext(BaseModel):
     text: str = Field(..., description="Body of text containing entity.")
