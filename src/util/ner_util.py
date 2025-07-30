@@ -66,19 +66,19 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
 
 
 async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_norm_url: str, session: AsyncClient,
-                         entity_type=None, count=10):
+                         entity_type=None, count=10, nameres_count=None, sapbert_count=None):
     get_entities_tasks = [
         get_sapbert_ids(entity=entity,
                         entity_type=entity_type,
                         url=sapbert_url,
-                        count=count,
+                        count=sapbert_count or count,
                         session=session
                         ),
         get_nameres_ids(entity=entity,
                         entity_type=entity_type,
                         url=name_res_url,
                         nn_url=node_norm_url,
-                        count=count,
+                        count=nameres_count or count,
                         session=session
                         )
     ]
