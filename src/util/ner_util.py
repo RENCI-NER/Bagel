@@ -137,7 +137,7 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
         # For some reason if these are not normalizing let's just add them into the final list
         for x in merged:
             if x not in added:
-                logger.warning(f"Could not normalize {x}, adding to the final results: {merged[x]}")
+                logger.debug(f"Could not normalize {x}, adding to the final results: {merged[x]}")
                 final_results[x] = merged[x]
     return final_results
 
