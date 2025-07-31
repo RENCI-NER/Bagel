@@ -164,7 +164,7 @@ async def get_taxa_information(taxa_ids: list, node_norm_url: str):
                     if value:
                         taxa_cache[key] = value.get('id', {}).get('label', '')
                     else:
-                        logger.warning("Could not get taxa {key} from node norm".format(key=key))
+                        logger.debug("Could not get taxa {key} from node norm".format(key=key))
             else:
                 # Optionally, handle non-200 responses
                 pass
