@@ -165,7 +165,7 @@ if __name__ == "__main__":
         help='The count for NameRes processing.'
     )
     parser.add_argument(
-        '--chuck-size',
+        '--chunk-size',
         type=int,
         default=7,
         help='How many entites to annotate at a time'
@@ -186,7 +186,7 @@ if __name__ == "__main__":
             count=args.count,
             sapbert_count=args.sapbert_count,
             nameres_count=args.nameres_count,
-            chunk_size=args.chunck_size
+            chunk_size=args.chunk_size
         )
     )
 
