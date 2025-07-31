@@ -64,7 +64,7 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
         raise Exception(f"Error: nameres call for {entity}")
     return formatted
 
-
+@retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_norm_url: str, session: AsyncClient,
                          entity_type=None, count=10, nameres_count=None, sapbert_count=None):
     get_entities_tasks = [
