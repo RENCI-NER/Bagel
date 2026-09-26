@@ -5,9 +5,11 @@ from langchain_openai import ChatOpenAI
 from langchain_community.llms import Ollama
 from langchain.llms import BaseLLM
 from langchain.prompts import Prompt
-from models import SynonymListContext, SynonymClassesResponse, Entity
-from langchain_core.output_parsers import JsonOutputParser
-from typing import List, Dict
+from models import SynonymListContext, Entity
+from llm_output import parse_llm_json, map_color_codes
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda
+from typing import Any, List, Dict
 
 
 
@@ -60,24 +62,13 @@ class LLMHelper:
 
 
     @classmethod
-    def re_map_responses(cls, synonym_list: List[Entity], llm_response: Dict[str, any]) -> any:
-        # Map back ids to llm responses
-        by_color = {
-            entity.color_code: entity for entity in synonym_list
-        }
-        entities = []
+    def re_map_responses(cls, synonym_list: List[Entity], llm_response: Any) -> List[Dict]:
+        """ Maps LLM response items back to entities via color codes. Items that cannot be mapped are logged
+        and skipped. """
         logger.info(llm_response)
-        for item in llm_response:
-            synonym_type = item.get('synonym_type') or item.get('synonymType', None)
-            if not synonym_type:
-                raise ValueError('Undefined synonym type from LLM response!')
-            entity = by_color[item.get('color_code') or item.get('colorCode', None)]
-            final = entity.dict()
-            final.update({
-                "synonym_type": synonym_type
-            })
-            del final['color_code']
-            entities.append(final)
+        entities, problems = map_color_codes(synonym_list, parse_llm_json(llm_response))
+        for problem in problems:
+            logger.warning(f"Could not map LLM response item ({problem['reason']}): {problem['item']}")
         return entities
 
     @classmethod
@@ -96,7 +87,7 @@ class LLMHelper:
 
     @classmethod
     def get_chain(cls, prompt: Prompt, llm: BaseLLM, model_name: str = ""):
-        chain = (prompt | llm | JsonOutputParser(pydantic_object=SynonymClassesResponse))
+        chain = (prompt | llm | StrOutputParser() | RunnableLambda(parse_llm_json))
         chain.name = prompt.metadata['lc_hub_repo'] + '_' + model_name
         return chain
 

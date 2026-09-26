@@ -1,13 +1,12 @@
 import json
 import os.path
-from json import JSONDecodeError
 
 import openai
 import asyncio
 
 from models import SynonymListContext, Entity
 from prompt import load_prompt
-from chain import LLMHelper
+from llm_output import parse_llm_json, map_color_codes, LLMOutputError
 from glob import glob
 from util.ner_util import get_taxa_information
 
@@ -253,17 +252,13 @@ def remap_all(annotation_file, output_dir):
     files = glob(os.path.join(output_dir, 'complete', 'batch-*.jsonl'))
     remap_dir = os.path.join(output_dir,'remapped')
     os.makedirs(os.path.join(output_dir,'remapped'), exist_ok=True)
-    final_stats = {
-        "hallucinations": 0,
-        "json_errors": 0,
-        "total_lines": 0
-    }
+    final_stats = {}
     for file in files:
         file_name = file.split(os.path.sep)[-1]
         output_file_name = os.path.join(remap_dir, file_name)
         stats = remap_results(annotation_file, file, output_file_name)
         for k in stats:
-            final_stats[k] += stats[k]
+            final_stats[k] = final_stats.get(k, 0) + stats[k]
     with open(os.path.join(output_dir, 'remap_stats.json') , 'w') as stream:
         json.dump(final_stats, stream)
 
@@ -279,9 +274,14 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
     :return:
     """
     annotations_by_req_id = {}
-    json_errors = 0
-    hallucinations = 0
-    processed_lines = 0
+    stats = {
+        "hallucinations": 0,        # records with at least one color code not in the candidate list
+        "hallucinated_items": 0,    # individual response items with such a color code
+        "unmapped_items": 0,        # other unusable items (missing color code / type, not an object)
+        "json_errors": 0,           # records whose response contained no parsable JSON list
+        "api_errors": 0,            # records whose batch response was not a successful completion
+        "total_lines": 0
+    }
     print(f"Remapping : {batch_result_file} to {output_file_name}")
     processed_req_ids = []
     with open(annotation_file) as stream:
@@ -291,18 +291,29 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             annotations_by_req_id[req_id] = annotation_obj
     with open(batch_result_file) as stream:
         for line in stream:
-            processed_lines += 1
+            stats["total_lines"] += 1
             batch_result = json.loads(line)
             req_id = batch_result["custom_id"]
             processed_req_ids.append(req_id)
+            annotation = annotations_by_req_id[req_id]
+            # Every record gets an explicit status so failures can't be confused with "no match" (empty remap).
+            annotation["llm_status"] = "ok"
+            annotation["llm_response_remapped"] = {}
             try:
-                llm_response = json.loads(batch_result["response"]["body"]["choices"][0]["message"]["content"]
-                                          .replace('```json', '')
-                                          .replace('```', '')) #if isinstance(batch_result["response"]["body"]["choices"][0]["message"], str) else batch_result["response"]["body"]["choices"][0]["message"]
-            except JSONDecodeError as error:
-                json_errors += 1
-                annotations_by_req_id[req_id]["llm_repsonse"] = llm_response
-            # map color code to synonym ids
+                content = batch_result["response"]["body"]["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                stats["api_errors"] += 1
+                annotation["llm_status"] = "api_error"
+                annotation["llm_raw_response"] = batch_result.get("response") or batch_result.get("error")
+                continue
+            try:
+                llm_response = parse_llm_json(content)
+            except LLMOutputError:
+                stats["json_errors"] += 1
+                annotation["llm_status"] = "json_error"
+                annotation["llm_raw_response"] = content
+                continue
+            # map color code to synonym ids; must build the list in the same order as create_openai_request
             entity_list = SynonymListContext(
                 text="",
                 entity="",
@@ -312,24 +323,26 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
                         "identifier": identifier,
                         "description": value.get("description", ""),
                         "entity_type": value.get("category", ""),
-                    }) for identifier, value in annotations_by_req_id[req_id]["annotations"].items()
+                    }) for identifier, value in annotation["annotations"].items()
                 ]
             )
-            try:
-                color_code_remap = LLMHelper.re_map_responses(entity_list.synonyms, llm_response)
-            except KeyError:
-                hallucinations += 1
-                print(f"Error processing {llm_response}")
-                continue
+            color_code_remap, problems = map_color_codes(entity_list.synonyms, llm_response)
+            if problems:
+                hallucinated = [p for p in problems if p["reason"] == "unknown_color"]
+                stats["hallucinated_items"] += len(hallucinated)
+                stats["unmapped_items"] += len(problems) - len(hallucinated)
+                if hallucinated:
+                    stats["hallucinations"] += 1
+                annotation["llm_status"] = "partial"
+                annotation["llm_unmapped_items"] = problems
+                annotation["llm_raw_response"] = content
+                print(f"Could not map {len(problems)} item(s) for {req_id}: {problems}")
             remapped_response = {}
             for r in color_code_remap:
-                try:
-                    cp = {key: val for key, val in annotations_by_req_id[req_id]["annotations"][r["identifier"]].items()}
-                    cp.update({"synonym_type": r["synonym_type"]})
-                    remapped_response[r["identifier"]] = cp
-                    annotations_by_req_id[req_id]["llm_response_remapped"] = remapped_response
-                except KeyError:
-                    print(f"error processing ", annotations_by_req_id[req_id]["annotations"][r["identifier"]])
+                cp = dict(annotation["annotations"][r["identifier"]])
+                cp.update({"synonym_type": r["synonym_type"]})
+                remapped_response[r["identifier"]] = cp
+            annotation["llm_response_remapped"] = remapped_response
 
     with open(output_file_name, 'w') as stream:
         for req_id in processed_req_ids:
@@ -337,11 +350,7 @@ def remap_results(annotation_file, batch_result_file, output_file_name):
             stream.write(json.dumps(annotation) + '\n')
         print(f"done processing {output_file_name}")
 
-    return {
-        "hallucinations": hallucinations,
-        "json_errors": json_errors,
-        "total_lines": processed_lines
-    }
+    return stats
 
 # ###
 # /End result processing

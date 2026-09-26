@@ -53,4 +53,11 @@ Contains entities and their annotations.
 Split JSONL files for OpenAI batch API.
 
 * Remapped Files: 
-Processed outputs remapped to the original annotations.
+Processed outputs remapped to the original annotations. Every record gets an `llm_status`:
+
+  * `ok`: parsed and fully mapped. An empty `llm_response_remapped` means the LLM matched no candidate.
+  * `partial`: some response items couldn't be mapped (listed in `llm_unmapped_items`); the rest are in `llm_response_remapped`.
+  * `json_error`: no JSON list could be parsed from the response.
+  * `api_error`: the batch request didn't return a completion.
+
+  `llm_raw_response` is kept for every status except `ok`. `remap_stats.json` gives the totals.
