@@ -7,7 +7,7 @@ The server supports both OpenAI and Ollama models and features two main workflow
 
 2. `group_synonyms`: Re-ranks a user-provided list of candidate synonyms using an LLM.
 
-Prompts are dynamically loaded from the LangChain Community Hub, allowing for flexible and updatable prompt engineering without changing the server code.
+Prompts ship with the repository in [`prompts/`](prompts/): a snapshot of every version of every prompt in the `bagel` namespace on LangChain Hub, so the server and benchmark scripts need no access to LangChain Hub or a LangSmith API key.
 
 
 ## Setup and Installation
@@ -37,7 +37,31 @@ The API documentation will be available at `http://localhost:9001/docs`.
 ## API Endpoints
 The server exposes four main endpoints for LLM-augmented re-ranking.
 
-Note: Prompts are specified by prompt_name and are pulled from https://smith.langchain.com/hub. There are prompts that we have built that could readily be used [here](https://smith.langchain.com/hub/bagel/?organizationId=c9d09f57-ad7a-5cce-8c42-eaf249162e49)
+Note: Prompts are specified by `prompt_name`, using the LangChain Hub naming scheme, and are loaded from the local `prompts/` directory (see [Prompts](#prompts)).
+
+## Prompts
+
+`prompts/index.json` lists every available prompt with its commit hashes, newest first. Each `prompts/<name>/<commit_hash>.json` file holds the LangChain-serialized prompt template exactly as it was published on [LangChain Hub](https://smith.langchain.com/hub/bagel/?organizationId=c9d09f57-ad7a-5cce-8c42-eaf249162e49).
+
+| `prompt_name` | Resolves to |
+|---|---|
+| `bagel/ask_classes` or `ask_classes` | latest version |
+| `bagel/ask_classes:4da4ad77` | that commit (any unique hash prefix) |
+
+For reproducible results, pin a commit hash. `ask_classes_no_system` is the prompt used by the benchmark example config.
+
+To add or change a prompt, add a new `<commit_hash>.json` file and update `index.json`. To refresh the snapshot from LangChain Hub, run `python scripts/sync_prompts_from_hub.py`. Set `BAGEL_PROMPT_HUB_FALLBACK=true` to let the server pull prompts that are missing locally from the hub.
+
+LLM responses are parsed permissively: the prompts disagree on key spelling (`synonym_type`, `synonymType` or `relation_type`; `color_code`, `color-code` or `colorCode`), may wrap the JSON in fences or put a `<reasoning>` block before it, and may mark non-matches as `None`. Response items whose color code isn't in the candidate list are logged and skipped.
+
+## Tests
+
+```bash
+pip install pytest
+python -m pytest tests
+```
+
+The tests run offline and use fake NameRes, SapBERT and NodeNorm services.
 
 ### 1. Find & Rank CURIEs
 These endpoints first query external services (Name Resolver, Sapbert) to generate a list of candidate identifiers for an entity and then use an LLM to re-rank them based on the provided text.

@@ -6,7 +6,7 @@ import openai
 import asyncio
 
 from models import SynonymListContext, Entity
-from prompt import load_prompt_from_hub
+from prompt import load_prompt
 from chain import LLMHelper
 from glob import glob
 from util.ner_util import get_taxa_information
@@ -113,7 +113,7 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     abstracts_by_pmid = get_abstracts(abstracts_file)
-    prompt = load_prompt_from_hub(prompt_name)
+    prompt = load_prompt(prompt_name)
     count = 0
     current_batch = count // chunk_size
     # each file is named outputdir/batch-x.jsonl where x is the index of the batch

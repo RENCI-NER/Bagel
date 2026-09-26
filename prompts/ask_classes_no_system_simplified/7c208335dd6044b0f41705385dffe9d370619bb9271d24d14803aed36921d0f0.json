@@ -1,0 +1,57 @@
+{
+  "name": "ask_classes_no_system_simplified",
+  "owner": "bagel",
+  "commit_hash": "7c208335dd6044b0f41705385dffe9d370619bb9271d24d14803aed36921d0f0",
+  "parent_commit_hash": "d37f0d81a9f7d1e05a74a7ed05ced587c0da6eada950180845ae70ae0c5471a6",
+  "created_at": "2025-03-04T19:51:10.291589Z",
+  "manifest": {
+    "lc": 1,
+    "type": "constructor",
+    "id": [
+      "langchain",
+      "prompts",
+      "chat",
+      "ChatPromptTemplate"
+    ],
+    "kwargs": {
+      "messages": [
+        {
+          "lc": 1,
+          "type": "constructor",
+          "id": [
+            "langchain",
+            "prompts",
+            "chat",
+            "HumanMessagePromptTemplate"
+          ],
+          "kwargs": {
+            "prompt": {
+              "lc": 1,
+              "type": "constructor",
+              "id": [
+                "langchain",
+                "prompts",
+                "prompt",
+                "PromptTemplate"
+              ],
+              "kwargs": {
+                "input_variables": [
+                  "text",
+                  "term",
+                  "synonym_list"
+                ],
+                "template_format": "f-string",
+                "template": "You are a biomedical ontology expert. Given a paper abstract, a query term, and a list of synonyms (with class and color), output JSON matches as follows:\n\nExact Match (max 1): Check if the query term matches a synonym exactly (case-insensitive).\n\nOther Matches: Identify narrow (more specific), broad (more general), or related terms.\n\nColor Codes: Use the color provided for each synonym.\n\nOutput Format:\n\n[  \n  {{ \"synonym\": \"term\", \"vocabulary_class\": \"Class\", \"synonym_type\": \"exact/narrow/broad/related\", \"color_code\": \"color\" }}\n]  \nExample:\n\n[\n  {{ \"synonym\": \"Diabetes Mellitus\", \"vocabulary class\": \"Disease\", \"synonymType\": \"exact\" , \"color-code\" : \"red\" }},\n  {{ \"synonym\": \"Metabolic Disorder\", \"vocabulary class\": \"Disease\", \"synonymType\": \"broad\", \"color-code\" : \"blue\" }}\n]  \n\n\nKey Rules:\nPrioritize exact matches (human BMI1 = \"blue-violet\").\nCase-insensitive matching (e.g., \"Bmi1\" = \"BMI1\").\nStrict JSON; no extra text.\n\nabstract: {text} \n\nquery_term: {term} \n\npossible_synonyms_and_classes: {synonym_list}\n\n"
+              }
+            }
+          }
+        }
+      ],
+      "input_variables": [
+        "text",
+        "term",
+        "synonym_list"
+      ]
+    }
+  }
+}

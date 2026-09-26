@@ -16,8 +16,8 @@ app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranki
                                                             "**NOTE**: Ollama endpoints might need custom prompt as "
                                                             "JSON parsing is not fully functional.")
 """doc strings"""
-PROMPT_NAME = ("Prompts are currently hosted on smith.langchain.com (https://smith.langchain.com/hub/bagel/)."
-              "Prompt name is name for a public prompt hosted in smith.langchain.com.\n")
+PROMPT_NAME = ("Prompts are bundled with the server (see GET /prompts). prompt_name is a LangChain Hub style name, "
+              "e.g. bagel/ask_classes (latest version) or bagel/ask_classes:4da4ad77 (pinned version).\n")
 OPENAI_INSTRUCTIONS = ("To use OPENAI endpoints instead of default vllm please set config.url to empty string and pass in"
                        "appropriate openai credentials.")
 
@@ -83,7 +83,7 @@ async def resolve_entities(query: Query, llm):
             entity=query.entity,
             synonyms=id_list
         )
-        _prompt = prompt.load_prompt_from_hub(query.prompt_name)
+        _prompt = prompt.load_prompt(query.prompt_name)
         result = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=context)
         remapped = {}
         for r in result:
@@ -93,6 +93,11 @@ async def resolve_entities(query: Query, llm):
             })
             remapped[r['identifier']] = final
         return remapped
+
+
+@app.get("/prompts", description="Lists the bundled prompts as {prompt_name: {latest, commits}}.")
+async def list_prompts():
+    return prompt._load_index()
 
 
 @app.get("/", include_in_schema=False)
@@ -134,7 +139,7 @@ async def find_curies(query: OllamaCurieQuery):
                                                 + PROMPT_NAME + OPENAI_INSTRUCTIONS)
 async def group_synonyms_openai(query: OpenAIQuery):
     llm = get_openai_llm(query.config)
-    _prompt = prompt.load_prompt_from_hub(query.prompt_name)
+    _prompt = prompt.load_prompt(query.prompt_name)
     try:
         response =  await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
@@ -149,7 +154,7 @@ async def group_synonyms_openai(query: OpenAIQuery):
                                                 + PROMPT_NAME)
 async def group_synonyms_ollama(query: OllamaQuery):
     llm = get_ollama_llm(query.config)
-    _prompt = prompt.load_prompt_from_hub(query.prompt_name)
+    _prompt = prompt.load_prompt(query.prompt_name)
     try:
         response = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
