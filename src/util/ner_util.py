@@ -1,5 +1,6 @@
 from httpx import AsyncClient
 import json
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from logutil import LoggingUtil
 import asyncio
 from tenacity import retry, wait_exponential, stop_after_attempt
@@ -14,7 +15,7 @@ async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, en
         "model_name": "sapbert",
         "count": count
     }
-    if entity_type is not None:
+    if entity_type:
         payload["args"] = {
             "bl_type": entity_type
         }
@@ -38,12 +39,24 @@ async def get_sapbert_ids(entity: str, session: AsyncClient, count: int = 10, en
     return reformatted
 
 
+def build_nameres_url(url: str, entity: str, count: int = 10, entity_type: str = None):
+    """
+    Builds a NameRes lookup URL. `url` is the configured base, conventionally ending in "string=" so the entity is
+    appended; any string/limit/biolink_type already in it is replaced so the entity is URL-encoded (e.g. "Na+/K+",
+    "T&E") and limit is not duplicated.
+    """
+    scheme, netloc, path, query, fragment = urlsplit(url)
+    params = [(k, v) for k, v in parse_qsl(query, keep_blank_values=True)
+              if k not in ("string", "limit", "biolink_type")]
+    params += [("string", entity), ("limit", str(count))]
+    if entity_type:
+        params.append(("biolink_type", entity_type))
+    return urlunsplit((scheme, netloc, path, urlencode(params), fragment))
+
+
 @retry(wait=wait_exponential(multiplier=1, min=1, max=10), stop=stop_after_attempt(3))
 async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, entity_type: str = None, url: str = None, nn_url: str = None):
-    name_res_url = url + entity
-    if entity_type is not None:
-        name_res_url += f"&biolink_type={entity_type}"
-    name_res_url += f"&limit={count}"
+    name_res_url = build_nameres_url(url, entity, count=count, entity_type=entity_type)
     response = await session.get(name_res_url)
     if response.status_code == 200:
         json_data = response.json()
@@ -53,7 +66,7 @@ async def get_nameres_ids(entity: str, session: AsyncClient, count: int = 10, en
                 "name_res_rank": index + 1,
                 "name_res_score": x["score"],
                 "taxa": ", ".join(
-                            [value for key, value in (await get_taxa_information(x["taxa"], nn_url)).items()]
+                            [value for key, value in (await get_taxa_information(x["taxa"], nn_url)).items() if value]
                         ),
                 "taxa_id": x["taxa"],
                 "category": x["types"][0]
@@ -104,7 +117,8 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
         "curies": list(merged.keys()),
         "conflate": True,
         "description": True,
-        "drug_chemical_conflate": True
+        "drug_chemical_conflate": True,
+        "include_taxa": True
     }
     normalized_curies = await session.post(node_norm_url, json=nodenorm_payload)
     final_results = {}
@@ -123,6 +137,13 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
                 })
                 if norm_label:
                     entry["name"] = norm_label
+                # sapbert doesn't return taxa; fill them from node norm so e.g. human and mouse genes are
+                # distinguishable to the LLM regardless of which service found them
+                if not entry.get("taxa_id") and normalized_identifier.get("taxa"):
+                    entry["taxa_id"] = normalized_identifier["taxa"]
+                    entry["taxa"] = ", ".join(
+                        label for label in (await get_taxa_information(entry["taxa_id"], node_norm_url)).values()
+                        if label)
             else:
                 # For some reason if these are not normalizing let's just add them into the final list
                 logger.debug(f"Could not normalize {curie}, adding to the final results: {entry}")

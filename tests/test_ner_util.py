@@ -81,3 +81,28 @@ def test_collision_keeps_better_rank_per_source():
     sapbert = [sap("MONDO:1", "asthma", 0.99), sap("DOID:1", "asthma (disorder)", 0.95)]
     result = run(FakeSession(sapbert, [], NORMALIZED))
     assert (result["MONDO:1"]["sapbert_rank"], result["MONDO:1"]["sapbert_score"]) == (1, 0.99)
+
+
+def test_nameres_url_encodes_entity_and_replaces_params():
+    from urllib.parse import urlsplit, parse_qs
+    from util.ner_util import build_nameres_url
+    # server default (already has limit=10) and ORION's base (stray quote after string=)
+    for base in ["https://nr/lookup?autocomplete=false&offset=0&limit=10&string=",
+                 'https://nr/lookup?autocomplete=false&offset=0&limit=10&string="']:
+        url = build_nameres_url(base, "Na+/K+ ATPase & T#1", count=20, entity_type="biolink:Protein")
+        query = parse_qs(urlsplit(url).query)
+        assert query["string"] == ["Na+/K+ ATPase & T#1"]
+        assert query["limit"] == ["20"]
+        assert query["biolink_type"] == ["biolink:Protein"]
+        assert query["autocomplete"] == ["false"]
+    assert "biolink_type" not in build_nameres_url("https://nr/lookup?string=", "x", entity_type="")
+
+
+def test_sapbert_only_gene_gets_taxa_from_nodenorm():
+    from util import ner_util
+    ner_util.taxa_cache["NCBITaxon:10090"] = "Mus musculus"
+    normalized = {"NCBIGene:21926": {"id": {"identifier": "NCBIGene:21926", "label": "Tnf"},
+                                     "type": ["biolink:Gene"], "taxa": ["NCBITaxon:10090"]}}
+    result = run(FakeSession([sap("NCBIGene:21926", "Tnf", 0.9)], [], normalized))
+    assert result["NCBIGene:21926"]["taxa"] == "Mus musculus"
+    assert result["NCBIGene:21926"]["taxa_id"] == ["NCBITaxon:10090"]

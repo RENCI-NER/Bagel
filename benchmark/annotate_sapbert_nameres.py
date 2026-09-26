@@ -76,8 +76,10 @@ async def annotate_medmentions(input_file, output_file,
             results = await annotate_chunk(entities_to_annotate,
                                            name_res_url=name_res_url,
                                            sapbert_url=sapbert_url,
-                                           node_norm_url=node_norm_url
-                                           )
+                                           node_norm_url=node_norm_url,
+                                           sapbert_count=sapbert_count,
+                                           nameres_count=nameres_count,
+                                           count=count)
             write_annotations_to_file(results, entities_to_annotate, stream)
             pbar.update(len(entities_to_annotate))
 
