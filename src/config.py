@@ -46,6 +46,12 @@ class Settings(BaseModel):
     ollama_config: OLLAMAConfig = Field(default=None, description="")
     langServe: bool = True
     logging_level: str = "DEBUG"
+    # Hosts (fnmatch patterns) that request-supplied service and LLM URLs may point to. ["*"] allows any host.
+    allowed_url_hosts: List[str] = Field(default=[
+        "*.renci.org", "api.openai.com", "vllm-server*", "ollama*", "localhost", "127.0.0.1"
+    ], description="Allowed hosts for URLs passed in requests")
+    # include Python tracebacks in error responses (debugging only; they expose server internals)
+    return_tracebacks: bool = False
 
 
 

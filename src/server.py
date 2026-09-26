@@ -1,7 +1,7 @@
 import os.path
 
 from langserve import CustomUserType
-from config import OpenAIConfig, OLLAMAConfig
+from config import OpenAIConfig, OLLAMAConfig, settings, logger
 from chain import LLMHelper, get_ollama_llm, get_openai_llm
 from fastapi.responses import FileResponse, JSONResponse
 import prompt
@@ -10,6 +10,8 @@ from util.ner_util import get_entity_ids
 import fastapi
 import httpx
 import traceback
+from fnmatch import fnmatch
+from urllib.parse import urlsplit
 
 
 app = fastapi.FastAPI(title="Bagel API server", description="Runs bagel re-ranking prompts against pre-configured LLMs"
@@ -35,7 +37,7 @@ class Query(CustomUserType):
     nodenorm_url: str = "https://nodenormalization-sri.renci.org/get_normalized_nodes"
 
 
-class OllamaQuery(Query):
+class OllamaQuery(BaseModel):
     prompt_name: str
     context: SynonymListContext
     config: OLLAMAConfig = Field(default=OLLAMAConfig())
@@ -53,6 +55,31 @@ class OpenAICurieQuery(Query):
 class OllamaCurieQuery(Query):
     config: OLLAMAConfig = Field(default=OLLAMAConfig())
 
+
+
+class DisallowedURLError(ValueError):
+    pass
+
+
+def check_urls(*urls):
+    """ Rejects request-supplied service/LLM URLs whose host isn't in settings.allowed_url_hosts, so the server
+    can't be used to make requests to arbitrary hosts. """
+    for url in urls:
+        if not url:
+            continue
+        host = (urlsplit(url).hostname or "").lower()
+        if not any(fnmatch(host, pattern.lower()) for pattern in settings.allowed_url_hosts):
+            raise DisallowedURLError(f"Host {host!r} of {url!r} is not in allowed_url_hosts.")
+
+
+def error_response(e: Exception):
+    trb_str = traceback.format_exc()
+    logger.error(trb_str)
+    status_code = 400 if isinstance(e, (DisallowedURLError, prompt.PromptNotFoundError)) else 500
+    body = {'error': str(e)}
+    if settings.return_tracebacks:
+        body['traceback'] = trb_str
+    return JSONResponse(body, status_code=status_code)
 
 
 async def resolve_entities(query: Query, llm):
@@ -110,13 +137,12 @@ async def index():
                                              "augmented reranking(classification)" + PROMPT_NAME + OPENAI_INSTRUCTIONS)
 async def find_curies(query: OpenAICurieQuery):
     # collect results from name-res , and sap-bert
-    llm = get_openai_llm(query.config)
     try:
+        check_urls(query.name_res_url, query.sapbert_url, query.nodenorm_url, query.config.url)
+        llm = get_openai_llm(query.config)
         remapped = await resolve_entities(query, llm)
     except Exception as e:
-        trb_str = traceback.format_exc()
-        print(trb_str)
-        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
+        return error_response(e)
     return remapped
 
 
@@ -125,27 +151,25 @@ async def find_curies(query: OpenAICurieQuery):
                                              "augmented reranking(classification)" + PROMPT_NAME )
 async def find_curies(query: OllamaCurieQuery):
     # collect results from name-res , and sap-bert
-    llm = get_ollama_llm(query.config)
     try:
+        check_urls(query.name_res_url, query.sapbert_url, query.nodenorm_url, query.config.ollama_base_url)
+        llm = get_ollama_llm(query.config)
         remapped = await resolve_entities(query, llm)
     except Exception as e:
-        trb_str = traceback.format_exc()
-        print(trb_str)
-        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
+        return error_response(e)
     return remapped
 
 @app.post('/group_synonyms_openai', description="Expects a list of synonyms and will perform LLM augmented "
                                                 "reranking(classification) for the provided list for the given entity."
                                                 + PROMPT_NAME + OPENAI_INSTRUCTIONS)
 async def group_synonyms_openai(query: OpenAIQuery):
-    llm = get_openai_llm(query.config)
-    _prompt = prompt.load_prompt(query.prompt_name)
     try:
-        response =  await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
+        check_urls(query.config.url)
+        llm = get_openai_llm(query.config)
+        _prompt = prompt.load_prompt(query.prompt_name)
+        response = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
-        trb_str = traceback.format_exc()
-        print(trb_str)
-        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
+        return error_response(e)
     return response
 
 
@@ -153,14 +177,13 @@ async def group_synonyms_openai(query: OpenAIQuery):
                                                 "reranking(classification) for the provided list for the given entity."
                                                 + PROMPT_NAME)
 async def group_synonyms_ollama(query: OllamaQuery):
-    llm = get_ollama_llm(query.config)
-    _prompt = prompt.load_prompt(query.prompt_name)
     try:
+        check_urls(query.config.ollama_base_url)
+        llm = get_ollama_llm(query.config)
+        _prompt = prompt.load_prompt(query.prompt_name)
         response = await LLMHelper.ask(prompt=_prompt, llm=llm, synonym_context=query.context)
     except Exception as e:
-        trb_str = traceback.format_exc()
-        print(trb_str)
-        return JSONResponse({'error': str(e), 'traceback': trb_str}, status_code=500)
+        return error_response(e)
     return response
 
 

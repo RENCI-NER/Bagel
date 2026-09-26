@@ -20,6 +20,10 @@ PROMPTS_DIR = pathlib.Path(os.environ.get("BAGEL_PROMPTS_DIR",
 PROMPT_OWNER = "bagel"
 
 
+class PromptNotFoundError(KeyError):
+    """ The requested prompt or prompt version is not in the local snapshot."""
+
+
 def parse_prompt_name(prompt_name: str):
     """ Splits "bagel/name:hash", "bagel/name" or "name" into (name, hash_or_empty)."""
     if "/" in prompt_name:
@@ -46,12 +50,12 @@ def resolve_commit(name: str, version: str = "") -> str:
     """ Resolves a (possibly abbreviated or empty) commit hash to a full local commit hash."""
     index = _load_index()
     if name not in index:
-        raise KeyError(f"Prompt {PROMPT_OWNER}/{name} not found in {PROMPTS_DIR}. Available: {sorted(index)}")
+        raise PromptNotFoundError(f"Prompt {PROMPT_OWNER}/{name} not found in {PROMPTS_DIR}. Available: {sorted(index)}")
     if not version:
         return index[name]["latest"]
     matches = [c for c in index[name]["commits"] if c.startswith(version)]
     if len(matches) != 1:
-        raise KeyError(f"Version {version!r} of prompt {PROMPT_OWNER}/{name} "
+        raise PromptNotFoundError(f"Version {version!r} of prompt {PROMPT_OWNER}/{name} "
                        f"{'is ambiguous' if matches else 'not found'}. Available: {index[name]['commits']}")
     return matches[0]
 
@@ -76,7 +80,7 @@ def load_prompt(prompt_name: str):
     name, version = parse_prompt_name(str(prompt_name))
     try:
         return _load_local(name, resolve_commit(name, version))
-    except KeyError:
+    except PromptNotFoundError:
         if os.environ.get("BAGEL_PROMPT_HUB_FALLBACK", "").lower() not in ("1", "true", "yes"):
             raise
         logger.warning(f"Prompt {prompt_name} not found locally, pulling from LangChain Hub.")

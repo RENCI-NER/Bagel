@@ -16,3 +16,15 @@ ollama_config:
 logging_level: DEBUG
 
 langServe: false
+# Hosts (fnmatch patterns) that URLs passed in requests (name_res_url, sapbert_url, nodenorm_url, LLM urls) may
+# point to. Add the hosts of any other services you use; ["*"] allows any host.
+allowed_url_hosts:
+  - "*.renci.org"
+  - "api.openai.com"
+  - "vllm-server*"
+  - "ollama*"
+  - "localhost"
+  - "127.0.0.1"
+
+# Include Python tracebacks in error responses. Debugging only.
+return_tracebacks: false

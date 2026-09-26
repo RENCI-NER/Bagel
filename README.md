@@ -34,6 +34,10 @@ uvicorn src.server:app --host 0.0.0.0 --port 9001
 
 The API documentation will be available at `http://localhost:9001/docs`.
 
+### Allowed hosts
+
+Requests can override the NameRes, SapBERT, NodeNorm and LLM URLs. The server only contacts hosts matching `allowed_url_hosts` in `settings.yaml`; the default allows `*.renci.org`, `api.openai.com`, `vllm-server*`, `ollama*` and localhost. Add the hosts of any other services you use, or set it to `["*"]` to allow any host (not recommended for a publicly reachable deployment). Error responses carry only the error message; set `return_tracebacks: true` to include Python tracebacks when debugging.
+
 ## API Endpoints
 The server exposes four main endpoints for LLM-augmented re-ranking.
 

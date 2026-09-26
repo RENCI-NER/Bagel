@@ -55,6 +55,14 @@ config: |
     llm_model_args: { }
   langServe: true
   logging_level: DEBUG
+  # hosts request-supplied service/LLM URLs may point to; ["*"] allows any
+  allowed_url_hosts:
+    - "*.renci.org"
+    - "api.openai.com"
+    - "vllm-server*"
+    - "ollama*"
+    - "localhost"
+  return_tracebacks: false
 
 
 ingress:
