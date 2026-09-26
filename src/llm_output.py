@@ -10,7 +10,7 @@ import json
 import re
 from typing import Any, Dict, List, Tuple
 
-COLOR_KEYS = {"colorcode", "color"}
+COLOR_KEYS = {"colorcode", "color", "id", "candidateid"}
 TYPE_KEYS = {"synonymtype", "relationtype", "synonymoustype", "relation"}
 # types meaning "this candidate does not match"; dropped from results (same as the candidate not being listed)
 NO_MATCH_TYPES = {"none", "nomatch", "unrelated", "null"}
@@ -48,8 +48,10 @@ def parse_llm_json(response: Any) -> List[Dict]:
         response = response.content
     if isinstance(response, str):
         text = response.strip()
-        if "</reasoning>" in text:
-            text = text.split("</reasoning>")[-1]
+        # drop reasoning that precedes the answer: <reasoning> (ask_classes_cot) and <think> (Qwen3, DeepSeek-R1...)
+        for closing_tag in ("</reasoning>", "</think>"):
+            if closing_tag in text:
+                text = text.split(closing_tag)[-1]
         fenced = _FENCED.findall(text)
         candidates = fenced[::-1] + [text]  # last fenced block first; reasoning may contain earlier ones
         value, error = None, None

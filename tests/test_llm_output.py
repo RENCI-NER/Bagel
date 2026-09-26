@@ -46,6 +46,7 @@ def test_parse_fenced_and_reasoning():
     cot = ('<reasoning>alizarin is [maybe] exact; see {"note": 1}</reasoning>\n'
            '```json\n[{"candidate": "x", "relation_type": "exact", "color_code": "alizarin"}]\n```')
     assert parse_llm_json(cot)[0]["color_code"] == "alizarin"
+    assert parse_llm_json('<think>maybe [alizarin] or {"x": 1}</think>\n[{"a": 2}]') == [{"a": 2}]
     assert parse_llm_json('Here you go: [{"a": 1}] thanks') == [{"a": 1}]
     assert parse_llm_json('{"synonyms": [{"a": 1}]}') == [{"a": 1}]
     assert parse_llm_json([{"a": 1}]) == [{"a": 1}]
@@ -54,3 +55,9 @@ def test_parse_fenced_and_reasoning():
 def test_parse_garbage_raises():
     with pytest.raises(LLMOutputError):
         parse_llm_json("I could not find any synonyms.")
+
+
+def test_v2_object_output(synonyms):
+    response = parse_llm_json('{"interpretation": "the drug", "matches": [{"id": "alizarin", "relation": "exact"}]}')
+    entities, problems = map_color_codes(synonyms, response)
+    assert [(e["identifier"], e["synonym_type"]) for e in entities] == [("CHEBI:15365", "exact")]

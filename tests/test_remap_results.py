@@ -53,3 +53,11 @@ def test_taxa_labels_handles_old_and_new_annotation_formats():
     assert taxa_labels({"taxa": "Homo sapiens", "taxa_id": ["NCBITaxon:9606"]}, "http://unused") == "Homo sapiens"
     assert taxa_labels({"taxa": ["NCBITaxon:9606"]}, "http://unused") == "Homo sapiens"   # pre 2025-07-29 files
     assert taxa_labels({"name": "Tnf", "sapbert_rank": 1}, "http://unused") == ""          # sapbert-only
+
+
+def test_mark_mention():
+    from openai_batch_files import mark_mention
+    text = "TNF levels rose. Anti-TNF therapy helped."
+    assert mark_mention(text, 22, 25, "TNF") == "TNF levels rose. Anti-[[TNF]] therapy helped."
+    assert mark_mention(text, "0", "3", "TNF") == "[[TNF]] levels rose. Anti-TNF therapy helped."
+    assert mark_mention(text, 5, 8, "TNF") == text   # offsets don't match: leave unmarked

@@ -46,7 +46,20 @@ def taxa_labels(annotation: dict, nn_url: str) -> str:
     return taxa
 
 
-def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_name, additional_model_args, nn_url):
+MENTION_MARKERS = ("[[", "]]")
+
+
+def mark_mention(text: str, start: int, end: int, entity: str):
+    """ Wraps text[start:end] in [[ ]] so the prompt can say which occurrence to link. Returns text unchanged if
+    the offsets don't point at the entity string. """
+    start, end = int(start), int(end)
+    if text[start:end] != entity:
+        return text
+    return text[:start] + MENTION_MARKERS[0] + text[start:end] + MENTION_MARKERS[1] + text[end:]
+
+
+def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_name, additional_model_args, nn_url,
+                          mark_mentions=False):
     """
     for each entity in annotations file, it yields a json object of an openai request.
     :param pmid_abstracts: used for request identification
@@ -54,6 +67,7 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
     :param prompt: prompt to use for the request
     :param model_name: model to use
     :param additional_model_args: model args
+    :param mark_mentions: wrap the mention in the text in [[ ]] (for prompts that use the marker)
     :return: openai batch api compatible dict
     """
     with open(annotations_file_name) as stream:
@@ -76,11 +90,10 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
                     }) for identifier, value in annotation_obj['annotations'].items()
                 ]
             )
-            prompt_message = prompt.format_prompt(**{
-                'text': context.text,
-                'term': context.entity,
-                'synonym_list': context.pretty_print_synonyms()
-            })
+            text = context.text
+            if mark_mentions:
+                text = mark_mention(text, annotation_obj['start_index'], annotation_obj['end_index'], context.entity)
+            prompt_message = prompt.format_prompt(**context.prompt_inputs(text=text))
             request_id = f"{annotation_obj['pmid']}-{annotation_obj['start_index']}-{annotation_obj['end_index']}"
             body = {
                     "model": model_name,
@@ -107,7 +120,7 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
 
 
 def create_openai_batch_files(abstracts_file, annotations_file, output_path, prompt_name, model_name, model_args,
-                              chunk_size=50_000, nn_url=""):
+                              chunk_size=50_000, nn_url="", mark_mentions=False):
     """
     Splits annotation file into entries of chunks of size chunk_size , ready for openai batch api.
     :param abstracts_file: file to get abstracts for context
@@ -136,7 +149,8 @@ def create_openai_batch_files(abstracts_file, annotations_file, output_path, pro
             prompt=prompt,
             model_name=model_name,
             additional_model_args=model_args,
-            nn_url=nn_url
+            nn_url=nn_url,
+            mark_mentions=mark_mentions
         ):
         custom_id = i['custom_id']
         if custom_id not in req_ids_in_file:
@@ -387,7 +401,8 @@ def main(config, subcommand, oai_client):
             model_name=m_name,
             model_args=m_args,
             chunk_size=chunk_size,
-            nn_url=nn_url
+            nn_url=nn_url,
+            mark_mentions=config.get('mark_mentions', False)
         )
         start_batches(
             directory=output_dir,

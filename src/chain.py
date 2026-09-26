@@ -46,17 +46,10 @@ class LLMHelper:
     async def ask(cls, llm: BaseLLM, prompt: Prompt, synonym_context: SynonymListContext):
         chain = cls.get_chain(prompt=prompt, llm=llm)
         logger.info("SENDING TO LLM ........")
-        logger.info(prompt.format_prompt(**{
-            'text': synonym_context.text,
-            'term': synonym_context.entity,
-            'synonym_list': synonym_context.pretty_print_synonyms()
-        }).to_string())
+        inputs = synonym_context.prompt_inputs()
+        logger.info(prompt.format_prompt(**inputs).to_string())
         logger.info("END LLM MESSAGE. ")
-        response = await chain.ainvoke({
-            'text': synonym_context.text,
-            'term': synonym_context.entity,
-            'synonym_list': synonym_context.pretty_print_synonyms()
-        }, verbose=True)
+        response = await chain.ainvoke(inputs, verbose=True)
 
         return LLMHelper.re_map_responses(synonym_context.synonyms, response)
 
@@ -74,11 +67,7 @@ class LLMHelper:
     @classmethod
     async def ask_batch(cls, llm: BaseLLM, prompt: Prompt, synonym_contexts: List[SynonymListContext]):
         chain = cls.get_chain(prompt=prompt, llm=llm)
-        responses = await chain.abatch([{
-            'text': synonym_context.text,
-            'term': synonym_context.entity,
-            'synonym_list': synonym_context.pretty_print_synonyms()
-        } for synonym_context in synonym_contexts])
+        responses = await chain.abatch([synonym_context.prompt_inputs() for synonym_context in synonym_contexts])
         results = []
         for synonym_context, response in zip(synonym_contexts,responses):
             results.append(LLMHelper.re_map_responses(synonym_context.synonyms, response))

@@ -1,3 +1,4 @@
+import json
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -43,6 +44,26 @@ class SynonymListContext(BaseModel):
             string += f" : {synonym.description}" if synonym.description else ""
             string += "\n"
         return string
+
+    def candidates_json(self):
+        """ Candidates as a JSON array (one object per line), for prompts that take {candidates_json}."""
+        rows = []
+        for synonym in self.synonyms:
+            row = {"id": synonym.color_code, "label": synonym.label,
+                   "category": synonym.entity_type.replace("biolink:", ""),
+                   "taxon": synonym.taxa, "definition": synonym.description}
+            rows.append(json.dumps({k: v for k, v in row.items() if v}, ensure_ascii=False))
+        return "[\n" + ",\n".join(rows) + "\n]"
+
+    def prompt_inputs(self, text: str = None):
+        """ Variables for formatting a prompt. Prompts use a subset: text, term and synonym_list (bulleted
+        candidates) or candidates_json. `text` overrides self.text, e.g. with the mention marked. """
+        return {
+            'text': self.text if text is None else text,
+            'term': self.entity,
+            'synonym_list': self.pretty_print_synonyms(),
+            'candidates_json': self.candidates_json(),
+        }
 
 
 class SynonymClassResponse(BaseModel):

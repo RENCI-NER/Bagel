@@ -39,10 +39,17 @@ def get_manifest(owner, name, commit_hash):
 
 
 def main(owner, out_dir):
+    index_path = os.path.join(out_dir, "index.json")
     index = {}
+    if os.path.exists(index_path):
+        # keep prompts that only exist locally (built by scripts/build_local_prompts.py)
+        with open(index_path) as stream:
+            index = {name: entry for name, entry in json.load(stream).items() if entry.get("source") == "local"}
     for name in sorted(list_repos(owner)):
         os.makedirs(os.path.join(out_dir, name), exist_ok=True)
         commits = list_commits(owner, name)
+        if index.get(name, {}).get("source") == "local":
+            raise ValueError(f"Hub prompt {owner}/{name} has the same name as a local prompt; rename one of them.")
         index[name] = {"latest": commits[0]["commit_hash"], "commits": [c["commit_hash"] for c in commits]}
         for commit in commits:
             record = {
@@ -57,7 +64,7 @@ def main(owner, out_dir):
                 json.dump(record, stream, indent=2)
                 stream.write("\n")
         print(f"{name}: {len(commits)} commit(s)")
-    with open(os.path.join(out_dir, "index.json"), "w") as stream:
+    with open(index_path, "w") as stream:
         json.dump(index, stream, indent=2)
         stream.write("\n")
 
