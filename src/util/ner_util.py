@@ -86,21 +86,18 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
     logger.debug(f"Combined responses: {json.dumps(responses, indent=2)}")
 
     # merge them by identifier
-    all_curies = set()
-    for response in responses:
-        all_curies.update(response.keys())
-    logger.debug(f"All curies: {all_curies}")
     merged = {}
-    for curie in all_curies:
-        merged[curie] = {
-            "name_res_rank": -1,
-            "sapbert_rank": -1,
-            "name_res_score": -1,
-            "sapbert_score": -1,
-        }
-        for response in responses:
-            merged[curie].update(response.get(curie, {}))
-
+    for response in responses:
+        for curie, value in response.items():
+            merged.setdefault(curie, {
+                "name_res_rank": -1,
+                "sapbert_rank": -1,
+                "name_res_score": -1,
+                "sapbert_score": -1,
+            }).update(value)
+    # Fix the candidate order (and so the order/color codes the LLM sees) independent of set/dict ordering or
+    # which service answered first: best rank from either source, then name_res rank, sapbert rank, curie.
+    merged = dict(sorted(merged.items(), key=lambda kv: candidate_sort_key(kv[0], kv[1])))
     logger.debug(f"Merged: {json.dumps(merged, indent=2)}")
 
     nodenorm_payload = {
@@ -111,35 +108,64 @@ async def get_entity_ids(entity: str, name_res_url: str, sapbert_url: str, node_
     }
     normalized_curies = await session.post(node_norm_url, json=nodenorm_payload)
     final_results = {}
-    added = []
     if normalized_curies.status_code == 200:
         normalized_response_json = normalized_curies.json()
-        for curie in normalized_response_json:
-            normalized_identifier = normalized_response_json[curie]
+        for curie, entry in merged.items():
+            normalized_identifier = normalized_response_json.get(curie)
+            entry = dict(entry, source_curies=[curie])
             # make sure that we actually have normalized it
             if normalized_identifier:
                 norm_id = normalized_identifier["id"]["identifier"]
                 norm_label = normalized_identifier["id"].get("label", "")
-                norm_desc = normalized_identifier["id"].get("description", "")
-                norm_category = normalized_identifier["type"][0]
-                # go and get it from the above reformatted dict,
-                reformatted_entry = merged[curie]
-                final_results[norm_id] = reformatted_entry
-                final_results[norm_id].update({
-                    "description": norm_desc,
-                    "category": norm_category,
+                entry.update({
+                    "description": normalized_identifier["id"].get("description", ""),
+                    "category": normalized_identifier["type"][0],
                 })
                 if norm_label:
-                    final_results[norm_id].update({
-                        "name": norm_label
-                    })
-                added.append(curie)
-        # For some reason if these are not normalizing let's just add them into the final list
-        for x in merged:
-            if x not in added:
-                logger.debug(f"Could not normalize {x}, adding to the final results: {merged[x]}")
-                final_results[x] = merged[x]
+                    entry["name"] = norm_label
+            else:
+                # For some reason if these are not normalizing let's just add them into the final list
+                logger.debug(f"Could not normalize {curie}, adding to the final results: {entry}")
+                norm_id = curie
+            if norm_id in final_results:
+                # several source curies normalized to the same clique: combine rather than overwrite
+                merge_candidates(final_results[norm_id], entry)
+            else:
+                final_results[norm_id] = entry
+        # merging can improve a clique's best rank, so re-sort
+        final_results = dict(sorted(final_results.items(), key=lambda kv: candidate_sort_key(kv[0], kv[1])))
     return final_results
+
+
+RANK_SCORE_FIELDS = [("name_res_rank", "name_res_score"), ("sapbert_rank", "sapbert_score")]
+
+
+def candidate_sort_key(curie: str, entry: dict):
+    """ Sort key for candidates: best rank from any source first; ties broken by name_res rank, sapbert rank,
+    then curie. Missing ranks (-1) sort last. """
+    ranks = [entry.get(rank_field, -1) for rank_field, _ in RANK_SCORE_FIELDS]
+    ranks = [r if r and r > 0 else float("inf") for r in ranks]
+    return (min(ranks), *ranks, curie)
+
+
+def merge_candidates(target: dict, other: dict):
+    """
+    Merges candidate `other` into `target` in place (both normalized to the same identifier). For each source the
+    better (lower) rank is kept together with its score; the source curies are accumulated and fields missing on
+    target (e.g. taxa from name_res when target only came from sapbert) are filled from other.
+    """
+    for rank_field, score_field in RANK_SCORE_FIELDS:
+        other_rank = other.get(rank_field, -1)
+        target_rank = target.get(rank_field, -1)
+        if other_rank > 0 and (target_rank <= 0 or other_rank < target_rank):
+            target[rank_field] = other_rank
+            target[score_field] = other.get(score_field, -1)
+    target["source_curies"] = target.get("source_curies", []) + [
+        c for c in other.get("source_curies", []) if c not in target.get("source_curies", [])]
+    for key, value in other.items():
+        if value and not target.get(key):
+            target[key] = value
+    return target
 
 
 taxa_cache = {}
