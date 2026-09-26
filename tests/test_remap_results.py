@@ -44,3 +44,12 @@ def test_remap_statuses(tmp_path):
     assert out["5"]["llm_status"] == "ok" and out["5"]["llm_response_remapped"] == {}
     assert stats == {"hallucinations": 1, "hallucinated_items": 1, "unmapped_items": 0, "json_errors": 1,
                      "api_errors": 1, "total_lines": 5}
+
+
+def test_taxa_labels_handles_old_and_new_annotation_formats():
+    from openai_batch_files import taxa_labels
+    from util import ner_util
+    ner_util.taxa_cache["NCBITaxon:9606"] = "Homo sapiens"
+    assert taxa_labels({"taxa": "Homo sapiens", "taxa_id": ["NCBITaxon:9606"]}, "http://unused") == "Homo sapiens"
+    assert taxa_labels({"taxa": ["NCBITaxon:9606"]}, "http://unused") == "Homo sapiens"   # pre 2025-07-29 files
+    assert taxa_labels({"name": "Tnf", "sapbert_rank": 1}, "http://unused") == ""          # sapbert-only

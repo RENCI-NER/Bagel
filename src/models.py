@@ -35,7 +35,11 @@ class SynonymListContext(BaseModel):
         for synonym in self.synonyms:
             string += f"\t- {synonym.label}"
             string += f" [{synonym.taxa}] " if synonym.taxa else ""
-            string += f"({synonym.entity_type}) ({synonym.color_code})" if synonym.entity_type else ""
+            # the color code is how responses are mapped back, so it must be shown even without a type
+            if synonym.entity_type:
+                string += f"({synonym.entity_type}) ({synonym.color_code})"
+            else:
+                string += f"({synonym.color_code})" if synonym.taxa else f" ({synonym.color_code})"
             string += f" : {synonym.description}" if synonym.description else ""
             string += "\n"
         return string

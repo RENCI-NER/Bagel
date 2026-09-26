@@ -33,6 +33,19 @@ def get_abstracts(med_mentions_corpus_file_name):
     return pmid_abstracts
 
 
+def taxa_labels(annotation: dict, nn_url: str) -> str:
+    """
+    Taxon label string for a candidate. Annotation files written since 2025-07-29 store "taxa" as the joined labels
+    (ids in "taxa_id"); older ones store "taxa" as a list of ids, which are looked up. Candidates found only by
+    sapbert may have no taxa at all.
+    """
+    taxa = annotation.get("taxa") or ""
+    if isinstance(taxa, list):
+        labels = asyncio.run(get_taxa_information(taxa, nn_url))
+        return ", ".join(label for label in labels.values() if label)
+    return taxa
+
+
 def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_name, additional_model_args, nn_url):
     """
     for each entity in annotations file, it yields a json object of an openai request.
@@ -59,9 +72,7 @@ def create_openai_request(pmid_abstracts, annotations_file_name, prompt, model_n
                         "identifier": identifier,
                         "description": value.get("description", ""),
                         "entity_type": value.get("category", ""),
-                        "taxa": ", ".join(
-                            [value for key, value in asyncio.run(get_taxa_information(value["taxa"], nn_url)).items()]
-                        )
+                        "taxa": taxa_labels(value, nn_url)
                     }) for identifier, value in annotation_obj['annotations'].items()
                 ]
             )
