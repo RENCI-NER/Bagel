@@ -57,5 +57,12 @@
       "09cb61398bccc541cf27a7a78dfa1333dd167be04061b2bc4613c258d744724a",
       "bd27dec69cb9e93dee7ef5641d931d26001b837638bf985403675608c1c44847"
     ]
+  },
+  "ask_classes_v2": {
+    "latest": "143fd35055cc41efd157866ed2ddc7e88ad14d3a3a72bd6e1e2633e193f6fd95",
+    "commits": [
+      "143fd35055cc41efd157866ed2ddc7e88ad14d3a3a72bd6e1e2633e193f6fd95"
+    ],
+    "source": "local"
   }
 }

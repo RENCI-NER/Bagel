@@ -54,7 +54,9 @@ Note: Prompts are specified by `prompt_name`, using the LangChain Hub naming sch
 
 For reproducible results, pin a commit hash. `ask_classes_no_system` is the prompt used by the benchmark example config.
 
-To add or change a prompt, add a new `<commit_hash>.json` file and update `index.json`. To refresh the snapshot from LangChain Hub, run `python scripts/sync_prompts_from_hub.py`. Set `BAGEL_PROMPT_HUB_FALLBACK=true` to let the server pull prompts that are missing locally from the hub.
+Local prompts are written as readable YAML in `prompts/src/` and compiled into records with `python scripts/build_local_prompts.py`. Each distinct version gets its own content hash, and earlier versions stay loadable. `bagel/ask_classes_v2` is a draft proposed replacement; see [docs/prompt-proposal.md](docs/prompt-proposal.md). To refresh the Hub snapshot, run `python scripts/sync_prompts_from_hub.py`; it keeps local prompts.
+
+To compare prompts on a few cases against a local Ollama or OpenAI-compatible model, use `benchmark/compare_prompts.py`. Set `BAGEL_PROMPT_HUB_FALLBACK=true` to let the server pull prompts that are missing locally from the hub.
 
 LLM responses are parsed permissively: the prompts disagree on key spelling (`synonym_type`, `synonymType` or `relation_type`; `color_code`, `color-code` or `colorCode`), may wrap the JSON in fences or put a `<reasoning>` block before it, and may mark non-matches as `None`. Response items whose color code isn't in the candidate list are logged and skipped.
 
