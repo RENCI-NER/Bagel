@@ -48,6 +48,12 @@ api_key_keychain: bagel-azure-openai
 
 Pin full model names rather than aliases like `sonnet`: an alias can point to a different model after an update. Each decision also records the model the backend reports, and `bagel eval` lists them. For reasoning models that reject `temperature` (o-series, gpt-5), set `temperature: null`.
 
+```bash
+uv run bagel link --backend ollama.yaml --mention Tnf --text "Hepatic Tnf mRNA rose in Sprague-Dawley rats."
+```
+
+The output has the query as searched (after abbreviation expansion), the candidates, each candidate's relation, and the selection (`linked` with a CURIE, `abstained`, or `failed` with a reason).
+
 ### API keys
 
 Configs name where a key lives, never the key itself, so configs can be shared and committed. Keep keys out of chat with coding assistants, out of files in any repository, and out of your shell environment.
@@ -65,12 +71,6 @@ security delete-generic-password -s bagel-azure-openai
 ```
 
 On servers and in containers, use an environment variable instead (`api_key_env`, default `AZURE_OPENAI_API_KEY` or `OPENAI_API_KEY`), supplied by the platform, e.g. a Kubernetes secret. If a key is ever pasted somewhere it shouldn't be, rotate it in the Azure portal.
-
-```bash
-uv run bagel link --backend ollama.yaml --mention Tnf --text "Hepatic Tnf mRNA rose in Sprague-Dawley rats."
-```
-
-The output has the query as searched (after abbreviation expansion), the candidates, each candidate's relation, and the selection (`linked` with a CURIE, `abstained`, or `failed` with a reason).
 
 ## Task specs
 
