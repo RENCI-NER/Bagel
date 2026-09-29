@@ -72,7 +72,11 @@ class RunStore:
                 for item_id, record in self.db.execute("SELECT item_id, record FROM results")}
 
 
-def run(config: RunConfig, out_path: str | Path, progress=print) -> RunStore:
+def _print_progress(message: str) -> None:
+    print(message, flush=True)
+
+
+def run(config: RunConfig, out_path: str | Path, progress=_print_progress) -> RunStore:
     task = load_task(config.task)
     store = RunStore(out_path)
     fingerprint = _fingerprint(config, task.hash)
