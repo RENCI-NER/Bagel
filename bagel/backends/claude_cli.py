@@ -12,7 +12,7 @@ from bagel.backends.errors import BackendError, BackendResponse
 
 class ClaudeCLIConfig(BaseModel):
     kind: Literal["claude_cli"] = "claude_cli"
-    model: str = "sonnet"
+    model: str  # pin a full name (e.g. claude-sonnet-4-6); aliases like "sonnet" move when Claude Code updates
     executable: str = "claude"
     timeout: float = 300
     # --json-schema makes Claude Code take two turns and load ~29k tokens of its own context per call. Off by
@@ -64,7 +64,10 @@ class ClaudeCLIBackend:
         if output.get("is_error"):
             raise BackendError(f"claude -p: {output.get('result')}")
         usage = output.get("usage", {})
-        usage = {"input_tokens": usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
+        # the model the CLI actually used; aliases like "sonnet" change meaning when Claude Code updates
+        models = sorted(output.get("modelUsage", {}))
+        usage = {"model": models[0] if len(models) == 1 else models,
+                 "input_tokens": usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
                  + usage.get("cache_creation_input_tokens", 0),
                  "output_tokens": usage.get("output_tokens"),
                  "cost_usd_equivalent": output.get("total_cost_usd")}

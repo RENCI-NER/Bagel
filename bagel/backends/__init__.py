@@ -5,9 +5,9 @@ from pydantic import BaseModel, Field
 
 from bagel.backends.claude_cli import ClaudeCLIBackend, ClaudeCLIConfig
 from bagel.backends.errors import BackendError, BackendResponse
-from bagel.backends.openai_compatible import OpenAICompatibleBackend, OpenAIConfig
+from bagel.backends.openai_compatible import AzureOpenAIConfig, OpenAICompatibleBackend, OpenAIConfig
 
-BackendConfig = Annotated[OpenAIConfig | ClaudeCLIConfig, Field(discriminator="kind")]
+BackendConfig = Annotated[OpenAIConfig | AzureOpenAIConfig | ClaudeCLIConfig, Field(discriminator="kind")]
 
 
 class Backend(Protocol):

@@ -34,8 +34,37 @@ Or a Claude subscription through Claude Code (log in first):
 
 ```yaml
 kind: claude_cli
-model: sonnet
+model: claude-sonnet-4-6
 ```
+
+Or Azure OpenAI, where `model` is your deployment name:
+
+```yaml
+kind: azure_openai
+endpoint: https://<resource>.openai.azure.com
+model: <deployment name>
+api_key_keychain: bagel-azure-openai
+```
+
+Pin full model names rather than aliases like `sonnet`: an alias can point to a different model after an update. Each decision also records the model the backend reports, and `bagel eval` lists them. For reasoning models that reject `temperature` (o-series, gpt-5), set `temperature: null`.
+
+### API keys
+
+Configs name where a key lives, never the key itself, so configs can be shared and committed. Keep keys out of chat with coding assistants, out of files in any repository, and out of your shell environment.
+
+On a Mac, store the key in the Keychain from your own terminal. `-w` with no value makes `security` prompt for it, so it isn't echoed or saved in shell history:
+
+```bash
+security add-generic-password -U -a "$USER" -s bagel-azure-openai -w
+```
+
+Then set `api_key_keychain: bagel-azure-openai` in the backend config. BAGEL reads the key only when it creates the backend, inside its own process. The first read may show a Keychain dialog; allow it. To replace the key, run the same command again; to remove it:
+
+```bash
+security delete-generic-password -s bagel-azure-openai
+```
+
+On servers and in containers, use an environment variable instead (`api_key_env`, default `AZURE_OPENAI_API_KEY` or `OPENAI_API_KEY`), supplied by the platform, e.g. a Kubernetes secret. If a key is ever pasted somewhere it shouldn't be, rotate it in the Azure portal.
 
 ```bash
 uv run bagel link --backend ollama.yaml --mention Tnf --text "Hepatic Tnf mRNA rose in Sprague-Dawley rats."

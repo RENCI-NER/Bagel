@@ -63,6 +63,7 @@ def evaluate_run(results: dict[str, MentionResult], items: list[dict]) -> dict:
     for r in results.values():
         if r.decision:
             usage.update({k: v for k, v in r.decision.usage.items() if isinstance(v, (int, float)) and v is not None})
+    models = Counter(str(r.decision.usage.get("model")) for r in results.values() if r.decision)
     return {
         "selection": selection_metrics(outcomes, mm_agree),
         "status": dict(Counter(r.status for r in results.values())),
@@ -80,6 +81,7 @@ def evaluate_run(results: dict[str, MentionResult], items: list[dict]) -> dict:
                             "p95": statistics.quantiles(seconds, n=20)[-1] if len(seconds) >= 20 else max(seconds)}
         if seconds else None,
         "usage": dict(usage),
+        "models": dict(models),  # as reported by the backend, per decision
     }
 
 

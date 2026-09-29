@@ -75,7 +75,8 @@ def cmd_eval(args):
         print(f"{key:40s}" + "".join(f"{_fmt(reports[n].get(section, {}).get(key)):>{width}s}" for n in names))
     for name in names:
         if "status" in reports[name]:
-            print(f"\n{name} status: {reports[name]['status']}  latency: {reports[name]['latency_seconds']}")
+            print(f"\n{name} status: {reports[name]['status']}  models: {reports[name]['models']}  "
+                  f"latency: {reports[name]['latency_seconds']}")
 
 
 def main(argv=None):
