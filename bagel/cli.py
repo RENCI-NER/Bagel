@@ -49,10 +49,14 @@ def _fmt(value):
 
 def cmd_eval(args):
     items = load_items(args.dataset)
-    reports = {}
-    for path in args.runs:
-        store = RunStore(path)
-        reports[Path(path).stem] = evaluate_run(store.results(), items)
+    stores = {Path(path).stem: RunStore(path).results() for path in args.runs}
+    if stores:
+        # compare everything on the same mentions: those every run has results for
+        common = set.intersection(*(set(results) for results in stores.values()))
+        items = [i for i in items if i["id"] in common]
+        stores = {name: {k: v for k, v in results.items() if k in common} for name, results in stores.items()}
+        print(f"evaluating on the {len(items)} mentions all runs have results for\n")
+    reports = {name: evaluate_run(results, items) for name, results in stores.items()}
     for model in args.baseline or []:
         reports[f"baseline:{model}"] = evaluate_baseline(model, items)
     if args.json:
