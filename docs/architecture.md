@@ -76,3 +76,9 @@ Metrics are computed from run files, stage by stage:
 - **Operational:** status counts, latency, token usage.
 
 Gold comes from human assessments (agree/disagree per mention × CURIE) where available, then from MedMentions. A selected CURIE nobody has assessed is reported as **unassessed**, never counted as right or wrong. Assessment data contains assessor names and stays outside this repository; runs read it from a path.
+
+## Planned backends
+
+- **Typed-decision models: Jev and Laya.** They return typed values (choices, scores) with calibrated confidences instead of text, so each needs a native backend returning a Decision with `confidence`, not a chat prompt. Both fit the "which candidate is the mention, or none" decision shape.
+  - [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) (TypeSafe) is a hosted API.
+  - [Laya](https://huggingface.co/convaiinnovations/laya) (ConvAI Innovations) is open source (Apache 2.0): ModernBERT-large, 421M parameters, `pip install laya`, CPU or GPU. Its model card reports 0.36 zero-shot vs 0.77 fine-tuned on its own benchmark, so plan on fine-tuning it on the human assessments, keeping training and evaluation mentions separate.
