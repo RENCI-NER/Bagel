@@ -1,0 +1,120 @@
+# Task spec: prompt template ({text}, {mention}, {candidates}; literal braces doubled), output schema and
+# mapping of the prompt's labels to SKOS relations (mention = subject, candidate = object).
+name: relations_bwc
+description: The BagelWithCheese prompt (input_data/prompt_template, 2025-08-18), used for run_5 and copied into the ncats/litcoin
+  pipeline. Every candidate gets a relation; reasoning comes first.
+candidate_ids: colors
+candidate_fields:
+  label: label
+  taxon: taxa
+  color_code: id
+  vocabulary_class: category
+  description: description
+messages:
+- role: user
+  template: |
+    You are an expert engine for analyzing biomedical vocabularies and ontologies. Your task is to determine the semantic relationship between a query term, used within the context of a scientific abstract, and a list of candidate synonym terms. Unless otherwise specified, these abstracts relate to human health and biology.
+
+    ### Inputs
+
+    You will be provided with a JSON object containing three keys:
+
+    1.  `abstract`: The scientific text providing context.
+    2.  `query_term`: The specific biomedical entity from the abstract to be analyzed.
+    3.  `synonyms`: A JSON array of potential candidate synonyms. Each object in the array includes a label, its vocabulary class, a formal definition, and its unique `color_code`.
+
+    ### Task and Instructions
+
+    You will return your response as a JSON object.
+
+    First, within a `reasoning` element, think about the purpose of the abstract, and describe what you think the query term is given the context of the abstract.
+
+    After the `reasoning` element, generate a JSON list output called "candidates" describing the relationships between the query term and the potential synonyms.
+    Evaluate each potential synonym step-by-step, explicitly state the candidate, what its `color_code` is, and how it relates to the query term.
+    The `color_code` in the JSON object **MUST** be the same one you identified in your reasoning step.
+
+    **Relation Types:**
+
+      * **exact**: The query term and the candidate are perfect synonyms in this context. For genes, an exact match includes matching the species, orthologs should be considered related, not exact.  There can be **at most one** "exact" match.
+      * **subclass**: The query term is a more specific type or subclass of the candidate (e.g., "Basal Cell Carcinoma" is a narrow synonym of "Skin Cancer").
+      * **superclass**: The query term is a more general type or superclass of the candidate (e.g., "Cardiovascular Disease" is a broad synonym of "Myocardial Infarction").
+      * **related**: The terms are associated but not in a direct hierarchical relationship (e.g. A Disease is related to its Symptoms, an anatomical feature is related to its parts, a gene is related to its orthologs, and so on).
+      * **none**: There is no relation between the query and candidate
+
+    **CRITICAL RULES:**
+
+      * Exact matches do not require grammatical correctness, matching singular/plural forms, or other linguistic considerations.
+      * Exact matches do require matching type (e.g. genes vs gene families) with the exception of genes vs proteins, which are considered exact matches.
+      * Your output must be only the JSON output and nothing else.
+      * Within the JSON, the `reasoning` key must come first, followed by the `candidates` array.
+      * The `color_code` in the output must be an **exact copy** from the input. **DO NOT** invent, alter, or guess colors.
+      * The output array **MUST** be the same length as the input array
+
+    ### Output JSON Structure
+
+    The output must first contain a 'reasoning' key with your detailed reasoning as a string.
+
+    Each object in the following array must have the following keys:
+
+      * `candidate`: The `label` from the input candidate object.
+      * `color_code`: The unique color identifier from the input candidate object.
+      * `vocabulary_class`: The `vocabulary_class` from the input candidate object.
+      * `evaluation`: Your analysis of how the candidate relates to the query term.
+      * `relation_type`: Your classification of the relationship.
+
+    **BEGIN ANALYSIS**
+
+    abstract:  {text}
+
+    query_term: {mention}
+
+    candidate_synonyms:
+    {candidates}
+candidates_key: candidates
+id_key: color_code
+relation_key: relation_type
+rationale_key: reasoning
+labels:
+  exact: exactMatch
+  subclass: broadMatch
+  superclass: narrowMatch
+  related: relatedMatch
+  none: noMatch
+omitted: noMatch
+output_schema:
+  type: object
+  additionalProperties: false
+  required:
+  - reasoning
+  - candidates
+  properties:
+    reasoning:
+      type: string
+    candidates:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+        - candidate
+        - color_code
+        - vocabulary_class
+        - evaluation
+        - relation_type
+        properties:
+          candidate:
+            type: string
+          color_code:
+            type: string
+          vocabulary_class:
+            type: string
+          evaluation:
+            type: string
+          relation_type:
+            type: string
+            enum:
+            - exact
+            - superclass
+            - subclass
+            - related
+            - none
