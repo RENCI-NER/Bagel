@@ -62,6 +62,13 @@ class RunStore:
     def done(self) -> set[str]:
         return {row[0] for row in self.db.execute("SELECT item_id FROM results")}
 
+    def forget(self, statuses: list[str]) -> int:
+        """Deletes results with the given statuses so a resumed run retries them."""
+        placeholders = ",".join("?" * len(statuses))
+        count = self.db.execute(f"DELETE FROM results WHERE status IN ({placeholders})", statuses).rowcount
+        self.db.commit()
+        return count
+
     def add(self, item_id: str, result: MentionResult, seconds: float) -> None:
         self.db.execute("INSERT INTO results VALUES (?, ?, ?, ?, ?)",
                         (item_id, result.status, result.selection.status, seconds, result.model_dump_json()))
@@ -76,7 +83,10 @@ def _print_progress(message: str) -> None:
     print(message, flush=True)
 
 
-def run(config: RunConfig, out_path: str | Path, progress=_print_progress) -> RunStore:
+RETRYABLE = ["api_error", "retrieval_error"]
+
+
+def run(config: RunConfig, out_path: str | Path, progress=_print_progress, retry_failed: bool = False) -> RunStore:
     task = load_task(config.task)
     store = RunStore(out_path)
     fingerprint = _fingerprint(config, task.hash)
@@ -85,6 +95,8 @@ def run(config: RunConfig, out_path: str | Path, progress=_print_progress) -> Ru
         raise ValueError(f"{out_path} holds a run with a different configuration; use a new output file")
     store.set_meta(fingerprint=fingerprint, config=config.model_dump(mode="json"), task=task.name,
                    task_hash=task.hash)
+    if retry_failed:
+        progress(f"retrying {store.forget(RETRYABLE)} mentions that ended in {RETRYABLE}")
     items = [i for i in load_items(config.dataset, config.limit) if i["id"] not in store.done()]
     backend = make_backend(config.backend)
     cache = Cache(config.cache) if config.cache else None

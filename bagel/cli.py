@@ -38,7 +38,7 @@ def cmd_run(args):
     config = load_run_config(args.config)
     if args.limit is not None:
         config.limit = args.limit
-    run(config, args.out)
+    run(config, args.out, retry_failed=args.retry_failed)
 
 
 def _fmt(value):
@@ -102,6 +102,7 @@ def main(argv=None):
     p.add_argument("config")
     p.add_argument("--out", required=True, help="run file (SQLite); rerun with the same file to resume")
     p.add_argument("--limit", type=int)
+    p.add_argument("--retry-failed", action="store_true", help="rerun mentions that ended in api_error/retrieval_error")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("eval", help="metrics for runs and stored baselines")
