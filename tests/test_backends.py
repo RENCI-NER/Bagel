@@ -44,3 +44,12 @@ def test_azure_without_a_key_fails_at_construction(monkeypatch):
     monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
     with pytest.raises(ValueError, match="No Azure OpenAI key"):
         make_client(AzureOpenAIConfig(endpoint="https://example-resource.openai.azure.com", model="d"))
+
+
+def test_azure_v1_endpoint_uses_the_standard_client(keychain_item):
+    backend = make_backend({"kind": "azure_openai", "endpoint": "https://example-resource.openai.azure.com/openai/v1/",
+                            "model": "gpt-4.1", "api_key_keychain": keychain_item})
+    assert backend.config.is_v1
+    assert type(backend.client) is openai.OpenAI
+    assert str(backend.client.base_url) == "https://example-resource.openai.azure.com/openai/v1/"
+    assert backend.config.max_tokens_parameter == "max_completion_tokens"

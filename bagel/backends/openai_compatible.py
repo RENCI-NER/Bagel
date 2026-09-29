@@ -32,12 +32,22 @@ class OpenAIConfig(BaseModel):
 class AzureOpenAIConfig(OpenAIConfig):
     """
     Azure OpenAI. `model` is the deployment name; the model behind it is recorded from each response.
-    endpoint: https://<resource>.openai.azure.com
+
+    endpoint is either the v1 API, https://<resource>.openai.azure.com/openai/v1/ (standard OpenAI client, no
+    api_version), or the older resource URL, https://<resource>.openai.azure.com (used with api_version).
     """
     kind: Literal["azure_openai"] = "azure_openai"
     endpoint: str
-    api_version: str = "2024-10-21"  # GA version with structured outputs
+    api_version: str = "2024-10-21"  # only for the older resource-URL style; GA version with structured outputs
     api_key_env: str | None = "AZURE_OPENAI_API_KEY"
+
+    @property
+    def is_v1(self) -> bool:
+        return self.endpoint.rstrip("/").endswith("/openai/v1")
+
+    @property
+    def max_tokens_parameter(self) -> str:
+        return "max_completion_tokens"
 
 
 def make_client(config: OpenAIConfig) -> openai.OpenAI:
@@ -46,6 +56,8 @@ def make_client(config: OpenAIConfig) -> openai.OpenAI:
     if isinstance(config, AzureOpenAIConfig):
         if api_key is None:
             raise ValueError(f"No Azure OpenAI key: set api_key_keychain, or the {config.api_key_env} variable")
+        if config.is_v1:
+            return openai.OpenAI(api_key=api_key, base_url=config.endpoint, **common)
         return openai.AzureOpenAI(api_key=api_key, azure_endpoint=config.endpoint, api_version=config.api_version,
                                   **common)
     if api_key is None:

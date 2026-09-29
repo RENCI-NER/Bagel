@@ -41,10 +41,12 @@ Or Azure OpenAI, where `model` is your deployment name:
 
 ```yaml
 kind: azure_openai
-endpoint: https://<resource>.openai.azure.com
+endpoint: https://<resource>.openai.azure.com/openai/v1/
 model: <deployment name>
-api_key_keychain: bagel-azure-openai
+api_key_keychain: azure-openai
 ```
+
+The v1 endpoint above needs no `api_version`. The older form, `endpoint: https://<resource>.openai.azure.com`, also works, together with `api_version`.
 
 Pin full model names rather than aliases like `sonnet`: an alias can point to a different model after an update. Each decision also records the model the backend reports, and `bagel eval` lists them. For reasoning models that reject `temperature` (o-series, gpt-5), set `temperature: null`.
 
