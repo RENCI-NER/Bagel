@@ -74,3 +74,10 @@ def test_same_candidate_judged_twice_is_an_error():
     _, schema, ids = build_request(task, DOCUMENT, MENTION, CANDIDATES)
     answer = {"interpretation": "", "matches": [{"id": ids[0], "relation": "exact"}, {"id": ids[0], "relation": "related"}]}
     assert parse_decision(task, json.dumps(answer), schema, ids, CANDIDATES).status == "parse_error"
+
+
+def test_claude_cli_strips_only_a_fence_around_the_whole_answer():
+    from bagel.backends.claude_cli import strip_fence
+    assert strip_fence('```json\n{"a": 1}\n```') == '{"a": 1}'
+    assert strip_fence('{"a": 1}') == '{"a": 1}'
+    assert strip_fence('Here it is:\n```json\n{"a": 1}\n```') == 'Here it is:\n```json\n{"a": 1}\n```'
