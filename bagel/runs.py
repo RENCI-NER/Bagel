@@ -20,7 +20,7 @@ from bagel.types import Document, Mention, MentionResult
 
 class RunConfig(BaseModel):
     dataset: Path  # a benchmark truth.jsonl (EL_benchmarks)
-    abbreviations: Path | None = None  # optional JSONL of {"pmid", "abbreviation_map"} per document
+    abbreviations: Path | None = None  # JSONL from `bagel abbreviations`, one map per document
     task: str  # task spec name (bagel/tasks/<name>.yaml) or path
     backend: BackendConfig
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
@@ -38,9 +38,11 @@ def load_items(path: str | Path, limit: int | None = None, abbreviations: str | 
 
 
 def _fingerprint(config: RunConfig, task_hash: str) -> str:
-    # what determines results; concurrency, limit and cache location don't
+    # what determines results; concurrency, limit and cache location don't. The abbreviation file's content does,
+    # not only its path.
     relevant = config.model_dump(mode="json", exclude={"concurrency", "limit", "cache"})
-    return hashlib.sha256(json.dumps([relevant, task_hash], sort_keys=True).encode()).hexdigest()
+    abbreviations = hashlib.sha256(config.abbreviations.read_bytes()).hexdigest() if config.abbreviations else None
+    return hashlib.sha256(json.dumps([relevant, task_hash, abbreviations], sort_keys=True).encode()).hexdigest()
 
 
 class RunStore:

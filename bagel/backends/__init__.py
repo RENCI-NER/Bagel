@@ -18,12 +18,16 @@ class _BackendConfigHolder(BaseModel):
     config: BackendConfig
 
 
+def parse_backend_config(config: dict) -> BackendConfig:
+    return _BackendConfigHolder(config=config).config
+
+
 def make_backend(config: dict | BackendConfig) -> Backend:
     if isinstance(config, dict):
-        config = _BackendConfigHolder(config=config).config
+        config = parse_backend_config(config)
     if isinstance(config, OpenAIConfig):
         return OpenAICompatibleBackend(config)
     return ClaudeCLIBackend(config)
 
 
-__all__ = ["Backend", "BackendConfig", "BackendError", "BackendResponse", "make_backend"]
+__all__ = ["Backend", "BackendConfig", "BackendError", "BackendResponse", "make_backend", "parse_backend_config"]

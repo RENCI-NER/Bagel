@@ -47,12 +47,13 @@ class TaskSpec(BaseModel):
     hash: str = ""
 
 
-def load_task(name_or_path: str) -> TaskSpec:
+def load_task(name_or_path: str, spec_type: type[BaseModel] = TaskSpec):
+    """A task spec by name (bagel/tasks/<name>.yaml) or path; spec_type is TaskSpec or another spec with a hash."""
     path = Path(name_or_path)
     if not path.suffix:
         path = TASKS_DIR / f"{name_or_path}.yaml"
     text = path.read_text()
-    spec = TaskSpec(**yaml.safe_load(text))
+    spec = spec_type(**yaml.safe_load(text))
     spec.hash = hashlib.sha256(text.encode()).hexdigest()
     return spec
 

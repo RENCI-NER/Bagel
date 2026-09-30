@@ -1,4 +1,4 @@
-"""Command line: bagel link | dataset | run | eval."""
+"""Command line: bagel link | abbreviations | run | eval."""
 import argparse
 import json
 import sys
@@ -7,10 +7,10 @@ from pathlib import Path
 import httpx
 import yaml
 
+from bagel.abbreviations import clean_abbreviation_map, extract, extract_documents, load_abbreviation_task
 from bagel.adjudicate import load_task
-from bagel.backends import make_backend
+from bagel.backends import make_backend, parse_backend_config
 from bagel.cache import Cache
-from bagel.datasets import assessed
 from bagel.evaluate import evaluate_proposers, evaluate_run
 from bagel.matching import BabelMatcher, IdentityMatcher
 from bagel.pipeline import PipelineConfig, link
@@ -22,17 +22,28 @@ def cmd_link(args):
     backend_config = yaml.safe_load(Path(args.backend).read_text())
     pipeline = PipelineConfig(**yaml.safe_load(Path(args.pipeline).read_text())) if args.pipeline else PipelineConfig()
     text = Path(args.text_file).read_text() if args.text_file else args.text
+    backend = make_backend(backend_config)
+    document = Document(id="input", text=text)
     abbreviations = json.loads(args.abbreviations) if args.abbreviations else {}
+    if args.extract_abbreviations:
+        extraction = extract(load_abbreviation_task(args.abbreviation_task), backend, document)
+        if extraction.status != "ok":
+            sys.exit(f"abbreviation extraction failed ({extraction.status}): {extraction.error}")
+        abbreviations = clean_abbreviation_map(extraction.abbreviation_map)
     with httpx.Client(timeout=pipeline.retrieval.timeout, transport=httpx.HTTPTransport(retries=3)) as client:
-        result = link(Document(id="input", text=text), Mention(text=args.mention, type_hint=args.type_hint),
-                      abbreviations, load_task(args.task), make_backend(backend_config), pipeline, client,
+        result = link(document, Mention(text=args.mention, type_hint=args.type_hint),
+                      abbreviations, load_task(args.task), backend, pipeline, client,
                       Cache(args.cache) if args.cache else None)
     print(result.model_dump_json(indent=2, exclude={"decision": {"raw"}} if not args.raw else None))
 
 
-def cmd_dataset(args):
-    count = assessed.build(args.dump, args.abbreviations, args.out)
-    print(f"wrote {count} mentions to {args.out}")
+def cmd_abbreviations(args):
+    backend = parse_backend_config(yaml.safe_load(Path(args.backend).read_text()))
+    failures = extract_documents(args.documents, load_abbreviation_task(args.task), backend, args.out,
+                                 concurrency=args.concurrency, limit=args.limit)
+    if failures:
+        sys.exit(f"{len(failures)} documents failed (rerun to retry them): "
+                 + ", ".join(f"{f.document} {f.status}" for f in failures[:5]))
 
 
 def cmd_run(args):
@@ -100,16 +111,23 @@ def main(argv=None):
     p.add_argument("--backend", required=True, help="backend config YAML")
     p.add_argument("--pipeline", help="pipeline config YAML (retrieval, policy)")
     p.add_argument("--type-hint")
-    p.add_argument("--abbreviations", help='JSON object, e.g. \'{"CF": "cystic fibrosis"}\'')
+    abbreviations = p.add_mutually_exclusive_group()
+    abbreviations.add_argument("--abbreviations", help='JSON object, e.g. \'{"CF": "cystic fibrosis"}\'')
+    abbreviations.add_argument("--extract-abbreviations", action="store_true",
+                               help="extract the text's abbreviations with the same backend first")
+    p.add_argument("--abbreviation-task", default="abbreviations_v1")
     p.add_argument("--cache", help="retrieval cache SQLite file")
     p.add_argument("--raw", action="store_true", help="include the raw model response")
     p.set_defaults(func=cmd_link)
 
-    p = sub.add_parser("dataset", help="build the assessed-MedMentions dataset from a bagel-eval pg_dump")
-    p.add_argument("--dump", required=True)
-    p.add_argument("--abbreviations", required=True)
-    p.add_argument("--out", required=True)
-    p.set_defaults(func=cmd_dataset)
+    p = sub.add_parser("abbreviations", help="extract the abbreviations each document defines (resumable JSONL)")
+    p.add_argument("--documents", required=True, help='JSONL of {"id", "text"}, e.g. an EL_benchmarks documents.jsonl')
+    p.add_argument("--backend", required=True, help="backend config YAML")
+    p.add_argument("--task", default="abbreviations_v1", help="abbreviation task spec name or path")
+    p.add_argument("--out", required=True, help="abbreviations JSONL; rerun with the same file to resume")
+    p.add_argument("--concurrency", type=int, default=4)
+    p.add_argument("--limit", type=int)
+    p.set_defaults(func=cmd_abbreviations)
 
     p = sub.add_parser("run", help="run a batch from a run config YAML")
     p.add_argument("config")
@@ -118,7 +136,7 @@ def main(argv=None):
     p.add_argument("--retry-failed", action="store_true", help="rerun mentions that ended in api_error/retrieval_error")
     p.set_defaults(func=cmd_run)
 
-    p = sub.add_parser("eval", help="metrics for runs and stored baselines")
+    p = sub.add_parser("eval", help="metrics for runs against a benchmark")
     p.add_argument("runs", nargs="*")
     p.add_argument("--dataset", required=True)
     p.add_argument("--matcher", choices=["babel", "identity"], default="babel",

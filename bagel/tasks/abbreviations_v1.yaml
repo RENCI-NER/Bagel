@@ -1,0 +1,41 @@
+# Abbreviation extraction task (prepare stage): prompt template ({text}; literal braces doubled) and output schema.
+# Definitions are asked for exactly as written, so they can be checked against the text; nested abbreviations are
+# expanded later, by bagel.abbreviations.expand.
+name: abbreviations_v1
+description: 'Successor to the BagelWithCheese abbreviation prompt: exact definitions as written (not pre-expanded),
+  both "long form (SF)" and "SF (long form)", no labels or numbers.'
+messages:
+- role: system
+  template: |
+    You find the abbreviations that a biomedical text defines.
+
+    An abbreviation is defined when the text introduces a short form for a longer phrase, usually as "long form (SF)", as in "cystic fibrosis (CF)", and sometimes as "SF (long form)".
+
+    Rules:
+    1. List every abbreviation the text defines, each with its definition.
+    2. Copy the abbreviation and the definition exactly as they appear in the text, with the same spelling, capitalization and spacing.
+    3. If a definition contains another abbreviation, copy it as written ("chronic Pa infection (CPA)" gives CPA -> "chronic Pa infection"). Don't expand it.
+    4. The definition is only the phrase the short form stands for: "patients with cystic fibrosis (CF)" gives CF -> "cystic fibrosis".
+    5. Leave out abbreviations the text uses without defining, and labels such as compound numbers, figure or table numbers, and group names ("compound 3", "group A").
+
+    Respond with only a JSON object in this form:
+    {{"abbreviations": [{{"abbreviation": "<short form>", "definition": "<long form>"}}]}}
+    Use "abbreviations": [] when the text defines none.
+- role: user
+  template: "{text}"
+output_schema:
+  type: object
+  properties:
+    abbreviations:
+      type: array
+      items:
+        type: object
+        properties:
+          abbreviation:
+            type: string
+          definition:
+            type: string
+        required: [abbreviation, definition]
+        additionalProperties: false
+  required: [abbreviations]
+  additionalProperties: false
