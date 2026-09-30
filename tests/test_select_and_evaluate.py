@@ -1,4 +1,5 @@
-from bagel.evaluate import evaluate_baseline, evaluate_run
+from bagel.evaluate import evaluate_proposers, evaluate_run
+from bagel.matching import IdentityMatcher
 from bagel.select import SelectionPolicy, select
 from bagel.types import Candidate, Decision, Judgment, Mention, MentionResult, Relation
 
@@ -35,26 +36,37 @@ def _result(selection_curie, exact=()):
                          selection=select(d, CANDIDATES, SelectionPolicy()))
 
 
-ITEMS = [
-    {"id": "m1", "gold": {"A:1": "correct"}, "medmentions": "A:1", "baselines": {"old": "A:1"}},
-    {"id": "m2", "gold": {"A:2": "incorrect", "A:9": "correct"}, "medmentions": "A:9", "baselines": {"old": None}},
-    {"id": "m3", "gold": {"A:3": "unsure"}, "medmentions": "A:3", "baselines": {"old": "A:2"}},
+ITEMS = [  # benchmark items as bagel.benchmarks produces them
+    {"id": "m1", "closed_world": False, "judgments": [
+        {"curie": "A:1", "verdict": "correct", "proposed_by": ["medmentions", "old"]}]},
+    {"id": "m2", "closed_world": False, "judgments": [
+        {"curie": "A:2", "verdict": "incorrect", "proposed_by": ["old"]},
+        {"curie": "A:9", "verdict": "correct", "proposed_by": ["medmentions"]}]},
+    {"id": "m3", "closed_world": False, "judgments": [{"curie": "A:3", "verdict": "incorrect"}]},
 ]
 
 
 def test_run_metrics():
     results = {"m1": _result("A:1", exact=("A:1",)),
                "m2": _result("A:2", exact=("A:2",)),  # links a known-incorrect CURIE; the correct one wasn't retrieved
-               "m3": _result("A:1", exact=("A:1",))}  # links a CURIE nobody assessed
-    report = evaluate_run(results, ITEMS)
+               "m3": _result("A:1", exact=("A:1",))}  # links a CURIE nobody judged
+    report = evaluate_run(results, ITEMS, IdentityMatcher())
     s = report["selection"]
-    assert (s["correct"], s["incorrect"], s["unassessed"]) == (1, 1, 1)
-    assert s["precision_assessed"] == 0.5
-    assert report["retrieval"] == {"mentions_with_correct_gold": 2, "correct_retrieved": 1, "recall": 0.5}
+    assert (s["correct"], s["incorrect"], s["unjudged"]) == (1, 1, 1)
+    assert s["precision_judged"] == 0.5
+    assert report["gold"] == {"mentions_with_correct_gold": 2, "mentions_with_reachable_gold": 2}
+    assert report["retrieval"] == {"correct_retrieved": 1, "recall": 0.5}
     assert report["adjudication_given_retrieved"]["exact_on_correct"] == 1.0
     assert report["abstention_when_correct_not_retrieved"] == {"n": 1, "abstained": 0.0}
 
 
+def test_closed_world_makes_unjudged_links_incorrect():
+    closed = [dict(i, closed_world=True) for i in ITEMS]
+    s = evaluate_run({"m3": _result("A:1", exact=("A:1",))}, closed, IdentityMatcher())["selection"]
+    assert (s["incorrect"], s["unjudged"]) == (1, 0)
+
+
 def test_baseline_metrics():
-    s = evaluate_baseline("old", ITEMS)["selection"]
-    assert (s["correct"], s["abstained"], s["unassessed"]) == (1, 1, 1)
+    # precision of the systems whose proposals were judged
+    assert evaluate_proposers(ITEMS) == {"medmentions": {"judged": 2, "precision": 1.0},
+                                         "old": {"judged": 2, "precision": 0.5}}

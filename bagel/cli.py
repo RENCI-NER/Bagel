@@ -11,7 +11,8 @@ from bagel.adjudicate import load_task
 from bagel.backends import make_backend
 from bagel.cache import Cache
 from bagel.datasets import assessed
-from bagel.evaluate import evaluate_baseline, evaluate_run
+from bagel.evaluate import evaluate_proposers, evaluate_run
+from bagel.matching import BabelMatcher, IdentityMatcher
 from bagel.pipeline import PipelineConfig, link
 from bagel.runs import RunStore, load_items, load_run_config, run
 from bagel.types import Document, Mention
@@ -49,6 +50,9 @@ def _fmt(value):
 
 def cmd_eval(args):
     items = load_items(args.dataset)
+    matcher = IdentityMatcher() if args.matcher == "identity" else \
+        BabelMatcher(conflate=not args.no_conflate, drug_chemical_conflate=not args.no_conflate,
+                     cache=Cache(args.cache) if args.cache else None)
     stores = {Path(path).stem: RunStore(path).results() for path in args.runs}
     if stores:
         # compare everything on the same mentions: those every run has results for
@@ -56,16 +60,17 @@ def cmd_eval(args):
         items = [i for i in items if i["id"] in common]
         stores = {name: {k: v for k, v in results.items() if k in common} for name, results in stores.items()}
         print(f"evaluating on the {len(items)} mentions all runs have results for\n")
-    reports = {name: evaluate_run(results, items) for name, results in stores.items()}
-    for model in args.baseline or []:
-        reports[f"baseline:{model}"] = evaluate_baseline(model, items)
+    reports = {name: evaluate_run(results, items, matcher) for name, results in stores.items()}
+    proposers = evaluate_proposers(items) if args.proposers else None
     if args.json:
-        json.dump(reports, sys.stdout, indent=2)
+        json.dump({"runs": reports, "proposers": proposers}, sys.stdout, indent=2)
         print()
         return
-    rows = [("selection", k) for k in ("n", "linked", "correct", "incorrect", "unassessed", "abstained", "failed",
-                                       "coverage", "precision_assessed", "agrees_with_medmentions")]
-    rows += [("retrieval", "recall"), ("adjudication_given_retrieved", "exact_on_correct"),
+    print(f"matcher: {matcher.describe()}\n")
+    rows = [("selection", k) for k in ("n", "linked", "correct", "incorrect", "unjudged", "conflicting", "abstained",
+                                       "failed", "coverage", "precision_judged", "accuracy")]
+    rows += [("gold", "mentions_with_correct_gold"), ("gold", "mentions_with_reachable_gold"),
+             ("retrieval", "recall"), ("adjudication_given_retrieved", "exact_on_correct"),
              ("adjudication_given_retrieved", "exact_on_incorrect"), ("adjudication_given_retrieved", "multiple_exact"),
              ("abstention_when_correct_not_retrieved", "abstained")]
     names = list(reports)
@@ -74,9 +79,12 @@ def cmd_eval(args):
     for section, key in rows:
         print(f"{key:40s}" + "".join(f"{_fmt(reports[n].get(section, {}).get(key)):>{width}s}" for n in names))
     for name in names:
-        if "status" in reports[name]:
-            print(f"\n{name} status: {reports[name]['status']}  models: {reports[name]['models']}  "
-                  f"latency: {reports[name]['latency_seconds']}")
+        print(f"\n{name} status: {reports[name]['status']}  models: {reports[name]['models']}  "
+              f"latency: {reports[name]['latency_seconds']}")
+    if proposers:
+        print("\nprecision of the systems whose proposals were judged (on these mentions):")
+        for system, p in proposers.items():
+            print(f"  {system:24s} {p['precision']:.3f} ({p['judged']} judged)")
 
 
 def main(argv=None):
@@ -113,7 +121,11 @@ def main(argv=None):
     p = sub.add_parser("eval", help="metrics for runs and stored baselines")
     p.add_argument("runs", nargs="*")
     p.add_argument("--dataset", required=True)
-    p.add_argument("--baseline", action="append", help="stored baseline model, e.g. gpt-oss (repeatable)")
+    p.add_argument("--matcher", choices=["babel", "identity"], default="babel",
+                   help="babel: same identifier or same NodeNorm clique (default); identity: same identifier only")
+    p.add_argument("--no-conflate", action="store_true", help="babel matcher without gene/protein, drug/chemical conflation")
+    p.add_argument("--cache", help="SQLite cache for NodeNorm lookups (keyed by Babel release)")
+    p.add_argument("--proposers", action="store_true", help="also report the judged systems' precision (proposed_by)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_eval)
 

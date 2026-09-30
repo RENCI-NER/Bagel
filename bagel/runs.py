@@ -11,6 +11,7 @@ import yaml
 from pydantic import BaseModel, Field
 
 from bagel.adjudicate import load_task
+from bagel.benchmarks import load_benchmark
 from bagel.backends import BackendConfig, make_backend
 from bagel.cache import Cache
 from bagel.pipeline import PipelineConfig, link
@@ -18,7 +19,8 @@ from bagel.types import Document, Mention, MentionResult
 
 
 class RunConfig(BaseModel):
-    dataset: Path
+    dataset: Path  # a benchmark truth.jsonl (EL_benchmarks)
+    abbreviations: Path | None = None  # optional JSONL of {"pmid", "abbreviation_map"} per document
     task: str  # task spec name (bagel/tasks/<name>.yaml) or path
     backend: BackendConfig
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
@@ -31,10 +33,8 @@ def load_run_config(path: str | Path) -> RunConfig:
     return RunConfig(**yaml.safe_load(Path(path).read_text()))
 
 
-def load_items(path: str | Path, limit: int | None = None) -> list[dict]:
-    with open(path) as stream:
-        items = [json.loads(line) for line in stream]
-    return items[:limit] if limit else items
+def load_items(path: str | Path, limit: int | None = None, abbreviations: str | Path | None = None) -> list[dict]:
+    return load_benchmark(path, abbreviations=abbreviations, limit=limit)
 
 
 def _fingerprint(config: RunConfig, task_hash: str) -> str:
@@ -97,7 +97,7 @@ def run(config: RunConfig, out_path: str | Path, progress=_print_progress, retry
                    task_hash=task.hash)
     if retry_failed:
         progress(f"retrying {store.forget(RETRYABLE)} mentions that ended in {RETRYABLE}")
-    items = [i for i in load_items(config.dataset, config.limit) if i["id"] not in store.done()]
+    items = [i for i in load_items(config.dataset, config.limit, config.abbreviations) if i["id"] not in store.done()]
     backend = make_backend(config.backend)
     cache = Cache(config.cache) if config.cache else None
 
