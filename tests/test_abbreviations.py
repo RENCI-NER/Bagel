@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from bagel.abbreviations import (build_abbreviation_request, clean_abbreviation_map, expand, extract_documents, find_parentheticals,
+from bagel.abbreviations import (build_abbreviation_request, clean_abbreviation_map, defining_sentence, expand, extract_documents, find_parentheticals,
                                  load_abbreviation_maps,
-                                 load_abbreviation_task, parse_extraction)
+                                 load_abbreviation_task, load_check_task, parse_extraction)
 from bagel.backends import parse_backend_config
 from bagel.types import Document
 
@@ -147,3 +147,19 @@ def test_a_parenthetical_left_out_is_a_parse_error():
     _, schema, found = build_abbreviation_request(task, document)
     answer = {"parentheticals": [{"id": "p1", "label": "same", "short_form": "H2O2", "long_form": "Hydrogen peroxide"}]}
     assert parse_extraction(task, document, json.dumps(answer), schema, found).status == "parse_error"
+
+
+def test_defining_sentence_is_the_one_with_the_definition():
+    text = ("Background sentence here. Patients with cystic fibrosis (CF) were enrolled. CF patients improved. "
+            "A potassium channel (KCNA1) was studied.")
+    assert defining_sentence(text, {"abbreviation": "CF", "definition": "cystic fibrosis"}) == \
+        "Patients with cystic fibrosis (CF) were enrolled."
+    assert defining_sentence(text, {"abbreviation": "KCNA1", "definition": "potassium  channel"}) == \
+        "A potassium channel (KCNA1) was studied."
+    with pytest.raises(ValueError):
+        defining_sentence(text, {"abbreviation": "X", "definition": "not there"})
+
+
+def test_check_task_offers_same():
+    task = load_check_task("abbreviations_check_jev_v1")
+    assert "same" in task.criteria and task.hash

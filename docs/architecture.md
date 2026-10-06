@@ -35,6 +35,7 @@ A mention is its text plus an optional character span and an optional type hint.
 - Abbreviations are extracted once per document, by a model with its own task spec (`abbreviations_v1`) through the same backends. The prompt asks for definitions exactly as written; pairs not found in the text are kept apart as `ungrounded`, not used.
 - Cleaning drops pairs that can't be expanded safely: single characters, numbers, definitions no longer than the abbreviation, and definitions that contain it.
 - Expansion replaces whole-word abbreviations in the mention, repeating until nested ones are expanded too. A mention of the form "definition (ABBR)" becomes the definition.
+- Extracted pairs can be checked by a typed-decision model (Jev): for each pair and its defining sentence, the probability that the short form stands for the same thing as the long form. This catches instances ("T. vaginalis isolates (TV-LACM6)") and wrong long forms at a fraction of a cent per hundred abstracts.
 - Batch runs read a precomputed abbreviation file (`bagel abbreviations`), since one document has many mentions and the map shouldn't vary between them.
 
 **Retrieval.**

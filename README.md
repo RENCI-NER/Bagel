@@ -187,6 +187,27 @@ This writes one line per document:
 
 Failed documents aren't written, so running the same command again retries them. Output files from a different task or backend are refused.
 
+Optionally, check the pairs with Jev, a typed-decision model. It asks, for each pair and the sentence defining it, whether the short form stands for the same thing as the long form. Pairs below `--min-same` are dropped, and every answer's probabilities are kept in the file:
+
+```yaml
+# jev.yaml
+kind: jev
+model: jev-1.13.0
+api_key_keychain: typesafe
+```
+
+```bash
+uv run bagel check-abbreviations abbreviations-craft.jsonl --documents EL_benchmarks/craft/documents.jsonl \
+    --backend jev.yaml --out abbreviations-craft-checked.jsonl
+```
+
+Score abbreviation files, checked or not, against the labeled parentheticals in EL_benchmarks:
+
+```bash
+uv run bagel eval-abbreviations abbreviations-heldout.jsonl --truth EL_benchmarks/abbreviations/truth.jsonl \
+    --documents EL_benchmarks/abbreviations/documents.jsonl --errors
+```
+
 **2. Run.** A run config names the benchmark, abbreviations, task, backend, selection policy and retrieval cache:
 
 ```yaml
@@ -248,6 +269,9 @@ The ones included:
 - `relations_bwc`: the BagelWithCheese prompt, used for run_5 and by the ncats/litcoin pipeline.
 - `relations_v2`: the draft successor prompt.
 - `abbreviations_v1`: abbreviation extraction. It asks for definitions exactly as written, so they can be checked against the text; nested abbreviations are expanded afterwards.
+- `abbreviations_v2`: v1 plus a rule that a parenthetical naming an instance ("K+ channel (KCNJ10)") isn't an abbreviation. Recommended, with DeepSeek-V4-Flash.
+- `abbreviations_classify_v1`: an experiment that labels each parenthetical same / instance / other; it did no better than v2 with any model tried.
+- `abbreviations_check_jev_v1`: the question Jev answers in `check-abbreviations`.
 
 To try a change:
 1. Copy a task spec to a new file and edit it.

@@ -7,9 +7,11 @@ from pathlib import Path
 import httpx
 import yaml
 
-from bagel.abbreviations import clean_abbreviation_map, extract, extract_documents, load_abbreviation_task
+from bagel.abbreviations import (check_documents, clean_abbreviation_map, extract, extract_documents,
+                                 load_abbreviation_task, load_check_task)
 from bagel.adjudicate import load_task
 from bagel.backends import make_backend, parse_backend_config
+from bagel.backends.jev import JevConfig
 from bagel.cache import Cache
 from bagel.evaluate import evaluate_abbreviations, evaluate_proposers, evaluate_run
 from bagel.matching import BabelMatcher, IdentityMatcher
@@ -44,6 +46,14 @@ def cmd_abbreviations(args):
     if failures:
         sys.exit(f"{len(failures)} documents failed (rerun to retry them): "
                  + ", ".join(f"{f.document} {f.status}" for f in failures[:5]))
+
+
+def cmd_check_abbreviations(args):
+    config = JevConfig(**yaml.safe_load(Path(args.backend).read_text()))
+    failures = check_documents(args.extractions, args.documents, load_check_task(args.task), config, args.out,
+                               min_same=args.min_same)
+    if failures:
+        sys.exit(f"{len(failures)} documents failed (rerun to retry them): {failures[:5]}")
 
 
 def cmd_run(args):
@@ -147,6 +157,15 @@ def main(argv=None):
     p.add_argument("--concurrency", type=int, default=4)
     p.add_argument("--limit", type=int)
     p.set_defaults(func=cmd_abbreviations)
+
+    p = sub.add_parser("check-abbreviations", help="check extracted pairs with a typed-decision model (Jev)")
+    p.add_argument("extractions", help="abbreviation JSONL from `bagel abbreviations`")
+    p.add_argument("--documents", required=True, help='JSONL of {"id", "text"} the extractions came from')
+    p.add_argument("--backend", required=True, help="Jev backend config YAML")
+    p.add_argument("--task", default="abbreviations_check_jev_v1", help="check task spec name or path")
+    p.add_argument("--min-same", type=float, default=0.5, help='keep pairs with at least this probability of "same"')
+    p.add_argument("--out", required=True, help="checked abbreviation JSONL; rerun with the same file to resume")
+    p.set_defaults(func=cmd_check_abbreviations)
 
     p = sub.add_parser("run", help="run a batch from a run config YAML")
     p.add_argument("config")

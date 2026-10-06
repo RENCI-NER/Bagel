@@ -265,3 +265,85 @@ def extract_documents(documents: str | Path, task: AbbreviationTask, backend: Ba
             progress(f"[{count}/{len(todo)}] {result.document}: {result.status} {len(result.abbreviation_map)} "
                      f"abbreviations, {len(result.ungrounded)} ungrounded {result.error or ''}")
     return failures
+
+
+class AbbreviationCheckTask(BaseModel):
+    """A typed question asked of each extracted pair: instructions and Choice criteria (must include "same")."""
+    name: str
+    description: str = ""
+    instructions: str
+    criteria: dict
+    hash: str = ""
+
+
+def load_check_task(name_or_path: str = "abbreviations_check_jev_v1") -> AbbreviationCheckTask:
+    return load_task(name_or_path, AbbreviationCheckTask)
+
+
+def defining_sentence(text: str, pair: dict) -> str:
+    """The sentence(s) where a pair's definition first appears, extended to include the short form if it follows."""
+    words = [re.escape(w) for w in pair["definition"].split()]
+    match = re.search(r"\s+".join(words), text, flags=re.IGNORECASE)
+    if match is None:
+        raise ValueError(f"definition {pair['definition']!r} not in the text; check only grounded pairs")
+    previous = text.rfind(". ", 0, match.start())
+    start = 0 if previous == -1 else previous + 2
+    after = _word_pattern([pair["abbreviation"].strip()]).search(text, match.end())
+    end_from = after.end() if after and after.start() - match.end() < 200 else match.end()
+    end = text.find(". ", end_from)
+    return text[start:len(text) if end == -1 else end + 1].strip()
+
+
+def check_pairs(task: AbbreviationCheckTask, backend, document: Document, pairs: list[dict],
+                concurrency: int = 8) -> list[dict]:
+    """Asks the typed backend about each pair; returns [{"abbreviation", "definition", "choice", "probabilities"}]."""
+    def ask(pair):
+        state = {"text": defining_sentence(document.text, pair), "short_form": pair["abbreviation"],
+                 "long_form": pair["definition"]}
+        answer = backend.choose(state, task.instructions, task.criteria)
+        return {**pair, "choice": answer["choice"], "probabilities": answer["probabilities"],
+                "model": answer["model"], "usage": answer["usage"]}
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        return list(pool.map(ask, pairs))
+
+
+def check_documents(extractions: str | Path, documents: str | Path, task: AbbreviationCheckTask, backend_config,
+                    out: str | Path, min_same: float = 0.5, progress=print) -> list[str]:
+    """
+    Checks every pair in an abbreviation file (from `bagel abbreviations`) and writes a new file in the same format:
+    abbreviation_map keeps the pairs whose probability of "same" is at least min_same, and `checked` records every
+    pair's answer so other thresholds can be evaluated without asking again. Resumable like extract_documents;
+    documents whose checks fail aren't written (rerun to retry) and are returned.
+    """
+    from bagel.backends.jev import JevBackend
+    source = hashlib.sha256(Path(extractions).read_bytes()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps([task.hash, backend_config.model_dump(mode="json"), min_same, source],
+                                            sort_keys=True).encode()).hexdigest()
+    out = Path(out)
+    done = set()
+    if out.exists():
+        for record in map(json.loads, out.read_text().splitlines()):
+            if record.get("fingerprint") != fingerprint:
+                raise ValueError(f"{out} holds checks from a different input, task, backend or threshold")
+            done.add(record["document"])
+    texts = {str(d["id"]): d["text"] for d in map(json.loads, Path(documents).read_text().splitlines())}
+    backend = JevBackend(backend_config)
+    failures = []
+    with open(out, "a") as sink:
+        for record in map(json.loads, Path(extractions).read_text().splitlines()):
+            if record["document"] in done:
+                continue
+            document = Document(id=record["document"], text=texts[record["document"]])
+            try:
+                checked = check_pairs(task, backend, document, record["abbreviation_map"])
+            except BackendError as e:
+                failures.append(record["document"])
+                progress(f"{record['document']}: api_error {e}")
+                continue
+            kept = [{"abbreviation": c["abbreviation"], "definition": c["definition"]} for c in checked
+                    if c["probabilities"]["same"] >= min_same]
+            sink.write(json.dumps({**record, "abbreviation_map": kept, "checked": checked, "check_task": task.name,
+                                   "min_same": min_same, "fingerprint": fingerprint}) + "\n")
+            sink.flush()
+            progress(f"{record['document']}: kept {len(kept)} of {len(checked)}")
+    return failures
