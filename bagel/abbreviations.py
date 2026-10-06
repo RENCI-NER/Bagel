@@ -55,6 +55,41 @@ def load_abbreviation_maps(path: str | Path) -> dict[str, dict[str, str]]:
     return maps
 
 
+_NOT_A_DEFINITION = re.compile(r"[=<>±]|\bet al\b")
+
+
+def find_parentheticals(text: str) -> list[dict]:
+    """
+    Every parenthetical that could define an abbreviation, "long form (SF)" or "SF (long form)", in order of first
+    occurrence: [{"start", "end", "inner", "before"}], with start/end the offsets of `inner` and `before` the text
+    leading up to the parenthesis (up to 80 characters).
+
+    A parenthesis counts only when it follows whitespace or starts the text, so parts of names such as "Fe(III)" and
+    "Na(+)" aren't parentheticals; nested parentheses stay inside the outer one. Left out, since they can't define
+    an abbreviation: contents with no letter (numbers, years) and statistics or citations (containing =, <, >, ±
+    or "et al"). Repeats of the same contents in a document are left out after the first.
+    """
+    found, seen, depth, open_at = [], set(), 0, None
+    for i, char in enumerate(text):
+        if char == "(":
+            if depth == 0:
+                if i > 0 and not text[i - 1].isspace():
+                    continue
+                open_at = i
+            depth += 1
+        elif char == ")" and depth > 0:
+            depth -= 1
+            if depth == 0:
+                inner = text[open_at + 1:i].strip()
+                if inner and inner not in seen and re.search(r"[A-Za-z]", inner) and \
+                        not _NOT_A_DEFINITION.search(inner):
+                    seen.add(inner)
+                    start = text.index(inner, open_at + 1)
+                    found.append({"start": start, "end": start + len(inner), "inner": inner,
+                                  "before": text[max(0, open_at - 80):open_at].rstrip()})
+    return found
+
+
 def _word_pattern(words):
     # longest first, so "CPA" is tried before "Pa"
     alternatives = "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True))

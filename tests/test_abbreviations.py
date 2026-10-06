@@ -2,7 +2,8 @@ import json
 
 import pytest
 
-from bagel.abbreviations import (clean_abbreviation_map, expand, extract_documents, load_abbreviation_maps,
+from bagel.abbreviations import (clean_abbreviation_map, expand, extract_documents, find_parentheticals,
+                                 load_abbreviation_maps,
                                  load_abbreviation_task, parse_extraction)
 from bagel.backends import parse_backend_config
 from bagel.types import Document
@@ -103,3 +104,13 @@ def test_resuming_with_a_different_extractor_is_refused(task, tmp_path):
     backend = parse_backend_config({"kind": "openai", "base_url": "http://localhost:11434/v1", "model": "m"})
     with pytest.raises(ValueError, match="different task or backend"):
         extract_documents(documents, task, backend, out)
+
+
+def test_parentheticals_in_both_shapes_and_not_inside_names():
+    text = ("Hydrogen peroxide (H2O2) and Fe(III)PPIX were given to patients with CF (cystic fibrosis). "
+            "Recordings at upper-thoracic (T4) levels (n = 12; P < 0.05) in 2016 (2016) differed (Smith et al.). "
+            "Later, H2O2 (H2O2) was repeated (see (Table 1)).")
+    found = find_parentheticals(text)
+    assert [f["inner"] for f in found] == ["H2O2", "cystic fibrosis", "T4", "see (Table 1)"]
+    assert all(text[f["start"]:f["end"]] == f["inner"] for f in found)
+    assert found[2]["before"].endswith("Recordings at upper-thoracic")
