@@ -9,14 +9,15 @@ from bagel.types import Candidate, Decision, Relation, Selection
 class SelectionPolicy(BaseModel):
     """
     accept: relations that may be linked, in order of preference; the first relation with any candidate wins.
-    on_multiple: when several candidates share the winning relation, take the best retrieval rank or abstain.
+    on_multiple: when several candidates share the winning relation, take the best retrieval rank, the highest
+        confidence (backends that report one), or abstain.
     min_confidence: abstain if the chosen judgment's confidence is below this (only for backends that report one).
 
     Examples: exact only = accept [exactMatch]; ORION's extract_best_match = accept [exactMatch, broadMatch,
     narrowMatch, relatedMatch] with best_rank; the LitCoin pipeline = accept [exactMatch, broadMatch].
     """
     accept: list[Relation] = Field(default_factory=lambda: [Relation.EXACT, Relation.BROAD])
-    on_multiple: Literal["best_rank", "abstain"] = "best_rank"
+    on_multiple: Literal["best_rank", "best_confidence", "abstain"] = "best_rank"
     min_confidence: float | None = None
 
 
@@ -30,6 +31,10 @@ def select(decision: Decision, candidates: list[Candidate], policy: SelectionPol
             continue
         if len(matches) > 1 and policy.on_multiple == "abstain":
             return Selection(status="abstained", reason=f"multiple {relation.value}")
+        if len(matches) > 1 and policy.on_multiple == "best_confidence":
+            if any(m.confidence is None for m in matches):
+                raise ValueError("on_multiple is best_confidence but the backend reports no confidence")
+            matches = sorted(matches, key=lambda j: -j.confidence)
         chosen = matches[0]
         if policy.min_confidence is not None:
             if chosen.confidence is None:

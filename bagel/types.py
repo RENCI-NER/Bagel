@@ -47,7 +47,8 @@ class Candidate(BaseModel):
 class Judgment(BaseModel):
     curie: str
     relation: Relation
-    confidence: float | None = None
+    confidence: float | None = None  # typed-decision backends: probability of `relation`
+    probabilities: dict[str, float] = Field(default_factory=dict)  # typed-decision backends: relation -> probability
 
 
 class Decision(BaseModel):

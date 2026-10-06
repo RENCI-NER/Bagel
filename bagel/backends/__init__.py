@@ -5,9 +5,10 @@ from pydantic import BaseModel, Field
 
 from bagel.backends.claude_cli import ClaudeCLIBackend, ClaudeCLIConfig
 from bagel.backends.errors import BackendError, BackendResponse
+from bagel.backends.jev import JevBackend, JevConfig
 from bagel.backends.openai_compatible import AzureOpenAIConfig, OpenAICompatibleBackend, OpenAIConfig
 
-BackendConfig = Annotated[OpenAIConfig | AzureOpenAIConfig | ClaudeCLIConfig, Field(discriminator="kind")]
+BackendConfig = Annotated[OpenAIConfig | AzureOpenAIConfig | ClaudeCLIConfig | JevConfig, Field(discriminator="kind")]
 
 
 class Backend(Protocol):
@@ -27,6 +28,8 @@ def make_backend(config: dict | BackendConfig) -> Backend:
         config = parse_backend_config(config)
     if isinstance(config, OpenAIConfig):
         return OpenAICompatibleBackend(config)
+    if isinstance(config, JevConfig):
+        return JevBackend(config)  # typed decisions: used with typed task specs, not chat prompts
     return ClaudeCLIBackend(config)
 
 

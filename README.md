@@ -68,6 +68,14 @@ api_key_keychain: azure-openai
 
 The OpenAI API itself is `kind: openai` with no `base_url`.
 
+Jev (TypeSafe), a typed-decision model, answers choice questions with probabilities instead of generating text. It works with typed task specs (`relations_jev_choose_v1` for linking, `abbreviations_check_jev_v1` for checking abbreviations), not with chat prompts:
+
+```yaml
+kind: jev
+model: jev-1.13.0
+api_key_keychain: typesafe
+```
+
 Notes:
 - **Azure versions:** the v1 endpoint above needs no `api_version`. The older form, `endpoint: https://<resource>.openai.azure.com`, also works, together with `api_version`.
 - **Model names:** pin full names rather than aliases like `sonnet`, because an alias can point to a different model after an update. Each answer records the model the backend reports, and `bagel eval` lists them.
@@ -268,6 +276,8 @@ Task specs in `bagel/tasks/` hold the prompts. Each linking task spec has:
 The ones included:
 - `relations_bwc`: the BagelWithCheese prompt, used for run_5 and by the ncats/litcoin pipeline.
 - `relations_v2`: the draft successor prompt.
+- `relations_jev_choose_v1`: for Jev. One choice among the candidates plus "none"; the chosen candidate is `exactMatch`, with Jev's probability as its confidence, so `min_confidence` in the selection policy sets the precision. On 500 mentions of each benchmark it matched the best LLMs (gpt-5.6-sol on MedMentions, DeepSeek-V4-Flash on CRAFT) at about 0.16 s per mention.
+- `relations_jev_v1`: for Jev, one relation question per candidate. Judged one at a time, too many candidates came out `exactMatch`; the choose-one spec replaced it.
 - `abbreviations_v1`: abbreviation extraction. It asks for definitions exactly as written, so they can be checked against the text; nested abbreviations are expanded afterwards.
 - `abbreviations_v2`: v1 plus a rule that a parenthetical naming an instance ("K+ channel (KCNJ10)") isn't an abbreviation. Recommended, with DeepSeek-V4-Flash.
 - `abbreviations_classify_v1`: an experiment that labels each parenthetical same / instance / other; it did no better than v2 with any model tried.

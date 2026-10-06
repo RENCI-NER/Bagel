@@ -1,0 +1,18 @@
+# Typed task for Jev: one Choice whose options are the candidates plus "none", so candidates are compared rather
+# than judged one at a time. The chosen candidate is exactMatch with its probability as confidence.
+name: relations_jev_choose_v1
+description: 'Jev picks the candidate that is the concept the mention refers to, or none. "none" is offered first,
+  since Jev leans toward the first option and abstaining is the cheaper error.'
+kind: typed
+mode: choose_one
+candidate_fields:
+  label: label
+  category: category
+  taxon: taxa
+  definition: description
+instructions: Which option is the concept that `mention` refers to in `text`? Wording, abbreviation, spelling,
+  plural and adjectival forms may differ. A gene and the protein it encodes count as the same concept, and so do a
+  drug and its active ingredient. For genes and proteins the taxon must match (assume human unless `text` says
+  otherwise). A broader concept, a narrower one, a look-alike or a related concept is not it.
+none: None of the other options is the concept `mention` refers to; the closest is broader, narrower, related or a
+  different concept.

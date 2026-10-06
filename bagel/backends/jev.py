@@ -31,16 +31,22 @@ class JevBackend:
         self.client = TypeSafeClient(api_key=api_key, model=config.model, timeout=config.timeout,
                                      retry=RetryPolicy(max_retries=config.max_retries))
 
-    def choose(self, state: dict, instructions, criteria: dict) -> dict:
+    def ask(self, state, questions: dict[str, dict]) -> dict:
         """
-        One Choice question about `state`. Returns {"choice", "probabilities", "confidence", "model", "usage"}.
-        Service failures raise BackendError.
+        Several Choice questions about one state ({id: {"instructions", "criteria"}}), answered in one request.
+        Returns {"answers": {id: {"choice", "probabilities", "confidence"}}, "model", "usage"}. Service failures
+        raise BackendError.
         """
         try:
             response = self.client.system_one(state=state, questions={
-                "q": Choice(instructions=instructions, criteria=criteria)})
+                qid: Choice(instructions=q["instructions"], criteria=q["criteria"]) for qid, q in questions.items()})
         except TypeSafeError as e:
             raise BackendError(f"{type(e).__name__}: {e}") from e
-        answer = response.answers["q"]
-        return {"choice": answer.choice, "probabilities": dict(answer.probabilities), "confidence": answer.confidence,
+        return {"answers": {qid: {"choice": a.choice, "probabilities": dict(a.probabilities), "confidence": a.confidence}
+                            for qid, a in response.answers.items()},
                 "model": response.model, "usage": response.usage.model_dump()}
+
+    def choose(self, state, instructions, criteria: dict) -> dict:
+        """One Choice question: {"choice", "probabilities", "confidence", "model", "usage"}."""
+        result = self.ask(state, {"q": {"instructions": instructions, "criteria": criteria}})
+        return {**result["answers"]["q"], "model": result["model"], "usage": result["usage"]}

@@ -81,3 +81,12 @@ def test_claude_cli_strips_only_a_fence_around_the_whole_answer():
     assert strip_fence('```json\n{"a": 1}\n```') == '{"a": 1}'
     assert strip_fence('{"a": 1}') == '{"a": 1}'
     assert strip_fence('Here it is:\n```json\n{"a": 1}\n```') == 'Here it is:\n```json\n{"a": 1}\n```'
+
+
+def test_typed_specs_load_as_typed_tasks():
+    from bagel.adjudicate import TypedTaskSpec
+    per_candidate, choose = load_task("relations_jev_v1"), load_task("relations_jev_choose_v1")
+    assert isinstance(per_candidate, TypedTaskSpec) and per_candidate.mode == "per_candidate"
+    assert set(per_candidate.labels) == set(per_candidate.criteria)
+    assert isinstance(choose, TypedTaskSpec) and choose.mode == "choose_one" and choose.none
+    assert not isinstance(load_task("relations_v2"), TypedTaskSpec)

@@ -70,3 +70,13 @@ def test_baseline_metrics():
     # precision of the systems whose proposals were judged
     assert evaluate_proposers(ITEMS) == {"medmentions": {"judged": 2, "precision": 1.0},
                                          "old": {"judged": 2, "precision": 0.5}}
+
+
+def test_best_confidence_breaks_ties_between_exact_matches():
+    candidates = [Candidate(curie="A:1", label="a"), Candidate(curie="B:2", label="b")]
+    decision = Decision(status="ok", judgments=[Judgment(curie="A:1", relation=Relation.EXACT, confidence=0.6),
+                                                Judgment(curie="B:2", relation=Relation.EXACT, confidence=0.9)])
+    assert select(decision, candidates, SelectionPolicy(on_multiple="best_confidence")).curie == "B:2"
+    assert select(decision, candidates, SelectionPolicy(on_multiple="best_rank")).curie == "A:1"
+    low = SelectionPolicy(accept=["exactMatch"], on_multiple="best_confidence", min_confidence=0.95)
+    assert select(decision, candidates, low).status == "abstained"

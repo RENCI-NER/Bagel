@@ -47,13 +47,41 @@ class TaskSpec(BaseModel):
     hash: str = ""
 
 
+class TypedTaskSpec(BaseModel):
+    """
+    A relation task for a typed-decision backend (Jev): one Choice question per candidate about the state
+    {text, mention}, with the candidate described in the question. Answers map to SKOS through `labels`, and the
+    chosen answer's probability becomes the judgment's confidence.
+    """
+    name: str
+    description: str = ""
+    kind: Literal["typed"]
+    # per_candidate: one question per candidate, answered with `criteria`, mapped through `labels`.
+    # choose_one: one question whose options are the candidates plus `none`; the chosen candidate is exactMatch with
+    #   its probability as confidence, the others noMatch.
+    mode: Literal["per_candidate", "choose_one"] = "per_candidate"
+    candidate_fields: dict[str, str]
+    instructions: str
+    criteria: dict = {}  # per_candidate: answer -> description (order matters, Jev leans toward the first)
+    labels: dict[str, Relation] = {}
+    none: str | None = None  # choose_one: description of the "none of these" option
+    none_position: Literal["first", "last"] = "first"  # choose_one: where "none" is offered
+    hash: str = ""
+
+
 def load_task(name_or_path: str, spec_type: type[BaseModel] = TaskSpec):
-    """A task spec by name (bagel/tasks/<name>.yaml) or path; spec_type is TaskSpec or another spec with a hash."""
+    """
+    A task spec by name (bagel/tasks/<name>.yaml) or path. spec_type is TaskSpec or another spec with a hash; a
+    linking spec with `kind: typed` loads as a TypedTaskSpec.
+    """
     path = Path(name_or_path)
     if not path.suffix:
         path = TASKS_DIR / f"{name_or_path}.yaml"
     text = path.read_text()
-    spec = spec_type(**yaml.safe_load(text))
+    values = yaml.safe_load(text)
+    if spec_type is TaskSpec and values.get("kind") == "typed":
+        spec_type = TypedTaskSpec
+    spec = spec_type(**values)
     spec.hash = hashlib.sha256(text.encode()).hexdigest()
     return spec
 
@@ -66,22 +94,25 @@ def candidate_ids(task: TaskSpec, count: int) -> list[str]:
     return COLORS[:count]
 
 
+def candidate_view(task, candidate: Candidate, cid: str | None = None) -> dict:
+    """The candidate as shown to a model: task.candidate_fields maps shown keys to attributes ("id" is cid)."""
+    view = {}
+    for key, attribute in task.candidate_fields.items():
+        if attribute == "id":
+            value = cid
+        elif attribute == "taxa":
+            value = ", ".join(candidate.taxa)
+        elif attribute == "category":
+            value = candidate.category.removeprefix("biolink:")
+        else:
+            value = getattr(candidate, attribute)
+        if value:
+            view[key] = value
+    return view
+
+
 def render_candidates(task: TaskSpec, candidates: list[Candidate], ids: list[str]) -> str:
-    rows = []
-    for candidate, cid in zip(candidates, ids):
-        row = {}
-        for key, attribute in task.candidate_fields.items():
-            if attribute == "id":
-                value = cid
-            elif attribute == "taxa":
-                value = ", ".join(candidate.taxa)
-            elif attribute == "category":
-                value = candidate.category.removeprefix("biolink:")
-            else:
-                value = getattr(candidate, attribute)
-            if value:
-                row[key] = value
-        rows.append(json.dumps(row, ensure_ascii=False))
+    rows = [json.dumps(candidate_view(task, c, cid), ensure_ascii=False) for c, cid in zip(candidates, ids)]
     return "[\n" + ",\n".join(rows) + "\n]"
 
 
@@ -125,8 +156,47 @@ def parse_decision(task: TaskSpec, content: str, schema: dict, ids: list[str], c
                     usage={"omitted": len(missing)})
 
 
-def adjudicate(task: TaskSpec, backend: Backend, document: Document, mention: Mention,
+def adjudicate_typed(task: TypedTaskSpec, backend, document: Document, mention: Mention,
+                     candidates: list[Candidate]) -> Decision:
+    """Asks a typed-decision backend one Choice question per candidate; every candidate gets a judgment."""
+    state = {"text": document.text, "mention": mention.text}
+    ids = [f"c{i:02d}" for i in range(1, len(candidates) + 1)]
+    if task.mode == "choose_one":
+        options = {cid: candidate_view(task, c) for cid, c in zip(ids, candidates)}
+        criteria = {"none": task.none, **options} if task.none_position == "first" else {**options, "none": task.none}
+        questions = {"choice": {"instructions": task.instructions, "criteria": criteria}}
+    else:
+        questions = {cid: {"instructions": {"candidate": candidate_view(task, c), "question": task.instructions},
+                           "criteria": task.criteria} for cid, c in zip(ids, candidates)}
+    start = time.perf_counter()
+    try:
+        result = backend.ask(state, questions)
+    except BackendError as e:
+        return Decision(status="api_error", error=str(e), seconds=time.perf_counter() - start)
+    seconds = time.perf_counter() - start
+    judgments = []
+    if task.mode == "choose_one":
+        answer = result["answers"]["choice"]
+        for cid, candidate in zip(ids, candidates):
+            chosen = answer["choice"] == cid
+            judgments.append(Judgment(curie=candidate.curie, relation=Relation.EXACT if chosen else Relation.NONE,
+                                      confidence=answer["probabilities"][cid] if chosen else None,
+                                      probabilities={Relation.EXACT.value: answer["probabilities"][cid]}))
+        return Decision(status="ok", judgments=judgments, raw=json.dumps(result["answers"]),
+                        usage={"model": result["model"], **result["usage"]}, seconds=seconds)
+    for qid, candidate in zip(questions, candidates):
+        answer = result["answers"][qid]
+        judgments.append(Judgment(
+            curie=candidate.curie, relation=task.labels[answer["choice"]], confidence=answer["probabilities"][answer["choice"]],
+            probabilities={task.labels[k].value: v for k, v in answer["probabilities"].items()}))
+    return Decision(status="ok", judgments=judgments, raw=json.dumps(result["answers"]),
+                    usage={"model": result["model"], **result["usage"]}, seconds=seconds)
+
+
+def adjudicate(task: TaskSpec | TypedTaskSpec, backend: Backend, document: Document, mention: Mention,
                candidates: list[Candidate]) -> Decision:
+    if isinstance(task, TypedTaskSpec):
+        return adjudicate_typed(task, backend, document, mention, candidates)
     messages, schema, ids = build_request(task, document, mention, candidates)
     start = time.perf_counter()
     try:

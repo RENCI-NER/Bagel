@@ -88,6 +88,13 @@ Benchmarks come from the EL_benchmarks repository: a `truth.jsonl` of mentions w
 - **Open and closed world:** each item says which it is. In an open-world benchmark (MedMentions-assessed), a link nobody judged is **unjudged**, never counted as right or wrong. In a closed-world one (CRAFT), it is wrong.
 - **Unreachable gold:** a judged identifier the matcher can't resolve, e.g. one missing from the Babel release, is counted separately so it isn't mistaken for a retrieval failure.
 
+## Typed-decision backends
+
+Jev is implemented (`kind: jev`). Typed task specs (`kind: typed`) ask it Choice questions instead of rendering a chat prompt.
+- `choose_one` offers the candidates plus "none" as the options of one question, so candidates are compared with each other. The chosen candidate's probability becomes the judgment's confidence.
+- `per_candidate` asks one relation question per candidate. Judging candidates in isolation, Jev labeled most of them `exactMatch`, so `choose_one` is the one to use.
+- Selection can break ties by confidence (`on_multiple: best_confidence`) and abstain below `min_confidence`.
+
 ## Planned backends
 
 - **Typed-decision models: Jev and Laya.** They return typed values (choices, scores) with calibrated confidences instead of text, so each needs a native backend returning a Decision with `confidence`, not a chat prompt. Both fit the "which candidate is the mention, or none" decision shape.
