@@ -5,6 +5,7 @@ matcher (bagel.matching), so benchmarks can keep their source identifiers.
 import statistics
 from collections import Counter
 
+from bagel.abbreviations import _word_pattern, clean_abbreviation_map
 from bagel.matching import judged_verdict
 from bagel.types import MentionResult, Relation
 
@@ -111,3 +112,57 @@ def evaluate_proposers(items: list[dict]) -> dict:
                 counts.setdefault(system, Counter())[j["verdict"]] += 1
     return {system: {"judged": sum(c.values()), "precision": c["correct"] / sum(c.values())}
             for system, c in sorted(counts.items())}
+
+
+def _pair_matches(pair: dict, inner: str, before: str) -> bool:
+    """A pair accounts for a parenthetical: "long form (SF)" or "SF (long form)", with the other part just before."""
+    abbreviation, definition = pair["abbreviation"].strip(), " ".join(pair["definition"].split()).casefold()
+    near = " ".join(before.split()).casefold()
+    word = _word_pattern([abbreviation])
+    return bool(word.search(inner) and definition in near) or \
+        bool(definition and definition in " ".join(inner.split()).casefold() and word.search(before[-60:]))
+
+
+def evaluate_abbreviations(truth: list[dict], texts: dict[str, str], records: list[dict]) -> dict:
+    """
+    Scores an abbreviation file (from `bagel abbreviations`) against labeled parentheticals (EL_benchmarks
+    abbreviations/truth.jsonl: same / instance / other). An item counts as predicted "same" when a pair in the
+    cleaned map accounts for it, so extract and classify tasks are scored on what linking would actually use.
+    A pair accounts for at most one item, the first in the text it matches, since an abbreviation is defined once
+    ("odds ratio (OR)" defines OR; a later "(OR = 3.6)" doesn't). Pairs that account for no labeled item are
+    counted as unmatched (defined without parentheses, or spurious).
+    """
+    by_document = {r["document"]: r for r in records}
+    missing = sorted({t["document"] for t in truth} - set(by_document))
+    if missing:
+        raise ValueError(f"no extraction for {len(missing)} labeled documents, e.g. {missing[:3]}")
+    counts = Counter()
+    errors = {"instance_as_same": [], "other_as_same": [], "same_missed": []}
+    used = set()
+    for item in sorted(truth, key=lambda t: (t["document"], t["start"])):
+        text = texts[item["document"]]
+        before = text[max(0, item["start"] - 150):item["start"]].rstrip(" (")
+        pairs = [{"abbreviation": a, "definition": d}
+                 for a, d in clean_abbreviation_map(by_document[item["document"]]["abbreviation_map"]).items()
+                 if (item["document"], a) not in used]
+        hits = [p for p in pairs if _pair_matches(p, item["inner"], before)]
+        used |= {(item["document"], p["abbreviation"]) for p in hits}
+        predicted = "same" if hits else "not"
+        counts[(item["label"], predicted)] += 1
+        if hits and item["label"] != "same":
+            errors[f"{item['label']}_as_same"].append((item["inner"], hits[0]["abbreviation"], hits[0]["definition"]))
+        elif not hits and item["label"] == "same":
+            errors["same_missed"].append(item["inner"])
+    all_pairs = {(d, a) for d in {t["document"] for t in truth}
+                 for a in clean_abbreviation_map(by_document[d]["abbreviation_map"])}
+    tp, fn = counts[("same", "same")], counts[("same", "not")]
+    fp = counts[("instance", "same")] + counts[("other", "same")]
+    return {
+        "same": {"labeled": tp + fn, "found": tp, "missed": fn, "false": fp,
+                 "precision": tp / (tp + fp) if tp + fp else None, "recall": tp / (tp + fn) if tp + fn else None},
+        "instance_as_same": counts[("instance", "same")],
+        "instances": counts[("instance", "same")] + counts[("instance", "not")],
+        "other_as_same": counts[("other", "same")],
+        "unmatched_pairs": len(all_pairs - used),
+        "errors": errors,
+    }

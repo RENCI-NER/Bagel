@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from bagel.abbreviations import (clean_abbreviation_map, expand, extract_documents, find_parentheticals,
+from bagel.abbreviations import (build_abbreviation_request, clean_abbreviation_map, expand, extract_documents, find_parentheticals,
                                  load_abbreviation_maps,
                                  load_abbreviation_task, parse_extraction)
 from bagel.backends import parse_backend_config
@@ -114,3 +114,36 @@ def test_parentheticals_in_both_shapes_and_not_inside_names():
     assert [f["inner"] for f in found] == ["H2O2", "cystic fibrosis", "T4", "see (Table 1)"]
     assert all(text[f["start"]:f["end"]] == f["inner"] for f in found)
     assert found[2]["before"].endswith("Recordings at upper-thoracic")
+
+
+CLASSIFY_TEXT = "Hydrogen peroxide (H2O2) opened a potassium channel (KCNA1) in patients with cystic fibrosis (CF)."
+
+
+def test_classify_request_lists_each_parenthetical_with_an_id():
+    task = load_abbreviation_task("abbreviations_classify_v1")
+    messages, schema, found = build_abbreviation_request(task, Document(id="d", text=CLASSIFY_TEXT))
+    assert [p["inner"] for p in found.values()] == ["H2O2", "KCNA1", "CF"]
+    assert schema["properties"]["parentheticals"]["items"]["properties"]["id"]["enum"] == ["p1", "p2", "p3"]
+    assert '"id": "p2"' in messages[-1]["content"] and "(KCNA1)" in messages[-1]["content"]
+
+
+def test_only_same_parentheticals_become_pairs():
+    task = load_abbreviation_task("abbreviations_classify_v1")
+    document = Document(id="d", text=CLASSIFY_TEXT)
+    _, schema, found = build_abbreviation_request(task, document)
+    answer = {"parentheticals": [
+        {"id": "p1", "label": "same", "short_form": "H2O2", "long_form": "Hydrogen peroxide"},
+        {"id": "p2", "label": "instance", "short_form": "", "long_form": ""},
+        {"id": "p3", "label": "same", "short_form": "CF", "long_form": "cystic fibrosis"}]}
+    extraction = parse_extraction(task, document, json.dumps(answer), schema, found)
+    assert extraction.status == "ok"
+    assert [p["abbreviation"] for p in extraction.abbreviation_map] == ["H2O2", "CF"]
+    assert [c["label"] for c in extraction.classified] == ["same", "instance", "same"]
+
+
+def test_a_parenthetical_left_out_is_a_parse_error():
+    task = load_abbreviation_task("abbreviations_classify_v1")
+    document = Document(id="d", text=CLASSIFY_TEXT)
+    _, schema, found = build_abbreviation_request(task, document)
+    answer = {"parentheticals": [{"id": "p1", "label": "same", "short_form": "H2O2", "long_form": "Hydrogen peroxide"}]}
+    assert parse_extraction(task, document, json.dumps(answer), schema, found).status == "parse_error"

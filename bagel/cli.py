@@ -1,4 +1,4 @@
-"""Command line: bagel link | abbreviations | run | eval."""
+"""Command line: bagel link | abbreviations | run | eval | eval-abbreviations."""
 import argparse
 import json
 import sys
@@ -11,7 +11,7 @@ from bagel.abbreviations import clean_abbreviation_map, extract, extract_documen
 from bagel.adjudicate import load_task
 from bagel.backends import make_backend, parse_backend_config
 from bagel.cache import Cache
-from bagel.evaluate import evaluate_proposers, evaluate_run
+from bagel.evaluate import evaluate_abbreviations, evaluate_proposers, evaluate_run
 from bagel.matching import BabelMatcher, IdentityMatcher
 from bagel.pipeline import PipelineConfig, link
 from bagel.runs import RunStore, load_items, load_run_config, run
@@ -98,6 +98,25 @@ def cmd_eval(args):
             print(f"  {system:24s} {p['precision']:.3f} ({p['judged']} judged)")
 
 
+def cmd_eval_abbreviations(args):
+    truth = [json.loads(line) for line in Path(args.truth).read_text().splitlines()]
+    texts = {d["id"]: d["text"] for d in map(json.loads, Path(args.documents).read_text().splitlines())}
+    for path in args.runs:
+        records = [json.loads(line) for line in Path(path).read_text().splitlines()]
+        report = evaluate_abbreviations(truth, texts, records)
+        if args.json:
+            print(json.dumps({Path(path).stem: report}))
+            continue
+        same = report["same"]
+        print(f"{Path(path).stem}: same precision {_fmt(same['precision'])} recall {_fmt(same['recall'])} "
+              f"({same['found']} of {same['labeled']} found, {same['false']} false); instances taken as same "
+              f"{report['instance_as_same']} of {report['instances']}; other taken as same {report['other_as_same']}; "
+              f"pairs matching no parenthetical {report['unmatched_pairs']}")
+        if args.errors:
+            for kind, examples in report["errors"].items():
+                print(f"  {kind}: {examples}")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="bagel", description="Babel Assisted Generative Entity Linker")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -146,6 +165,14 @@ def main(argv=None):
     p.add_argument("--proposers", action="store_true", help="also report the judged systems' precision (proposed_by)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_eval)
+
+    p = sub.add_parser("eval-abbreviations", help="score abbreviation files against labeled parentheticals")
+    p.add_argument("runs", nargs="+", help="abbreviation JSONL files from `bagel abbreviations`")
+    p.add_argument("--truth", required=True, help="EL_benchmarks abbreviations/truth.jsonl")
+    p.add_argument("--documents", required=True, help="EL_benchmarks abbreviations/documents.jsonl")
+    p.add_argument("--errors", action="store_true", help="list the misclassified parentheticals")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_eval_abbreviations)
 
     args = parser.parse_args(argv)
     args.func(args)

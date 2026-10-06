@@ -1,0 +1,50 @@
+# Abbreviation classification task (prepare stage): the parentheticals in a document are found in code
+# (bagel.abbreviations.find_parentheticals) and the model labels each one. Templates get {text} and {parentheticals};
+# literal braces are doubled. Only "same" items become abbreviation pairs.
+name: abbreviations_classify_v1
+description: 'Classify each parenthetical as same / instance / other relative to the phrase next to it, giving the
+  exact short and long forms for "same". Replaces open-ended listing (abbreviations_v1), which let instances
+  ("K+ channel (KCNJ10)") through and silently skipped real abbreviations.'
+kind: classify
+messages:
+- role: system
+  template: |
+    You decide which parentheticals in a biomedical text define abbreviations.
+
+    You receive a text and a list of its parentheticals, each with an id and the words just before it. For each one, decide how the parenthetical relates to the phrase next to it:
+    - same: one is an abbreviation, acronym, symbol or short name for exactly the same thing as the other, in either order: "cystic fibrosis (CF)", "IL1B (interleukin 1 beta)", "hydrogen peroxide (H2O2)".
+    - instance: they name different things. The parenthetical is a particular example, member, subtype, position or level, strain, cell line or gene of what the phrase describes: "a potassium channel (KCNA1)", "cervical (C5)", "a lung cancer cell line (Calu-3)", "influenza A viruses (H3N2)".
+    - other: anything else, such as an aside, a number or statistic, a citation, or a list of examples.
+
+    For "same", give the short form and the long form exactly as they appear in the text, with the same spelling, capitalization and spacing. The long form is only the phrase the short form stands for: "patients with cystic fibrosis (CF)" gives "cystic fibrosis". If the long form contains another abbreviation, copy it as written. For "instance" and "other", give empty strings.
+
+    Respond with only a JSON object in this form, with one entry for every id:
+    {{"parentheticals": [{{"id": "<id>", "label": "same" | "instance" | "other", "short_form": "<short form or empty>", "long_form": "<long form or empty>"}}]}}
+- role: user
+  template: |
+    Text:
+    {text}
+
+    Parentheticals:
+    {parentheticals}
+output_schema:
+  type: object
+  properties:
+    parentheticals:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          label:
+            type: string
+            enum: [same, instance, other]
+          short_form:
+            type: string
+          long_form:
+            type: string
+        required: [id, label, short_form, long_form]
+        additionalProperties: false
+  required: [parentheticals]
+  additionalProperties: false

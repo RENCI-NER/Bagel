@@ -2,6 +2,7 @@
 Stage 1 (prepare): abbreviations. Extraction asks a model which abbreviations a document defines, once per document;
 expansion rewrites a mention with that document's map before retrieval.
 """
+import copy
 import hashlib
 import json
 import re
@@ -117,9 +118,14 @@ def expand(text: str, abbreviations: dict[str, str]) -> str:
 
 
 class AbbreviationTask(BaseModel):
-    """An abbreviation extraction prompt ({text}) and the schema of its answer ({"abbreviations": [...]})."""
+    """
+    An abbreviation prompt and the schema of its answer. kind "extract": the model lists the abbreviations a text
+    defines ({text}; answer {"abbreviations": [...]}). kind "classify": the model labels each parenthetical found by
+    find_parentheticals as same / instance / other ({text}, {parentheticals}; answer {"parentheticals": [...]}).
+    """
     name: str
     description: str = ""
+    kind: Literal["extract", "classify"] = "extract"
     messages: list[Message]
     output_schema: dict
     hash: str = ""
@@ -130,6 +136,7 @@ class Extraction(BaseModel):
     status: Literal["ok", "api_error", "parse_error"]
     abbreviation_map: list[dict] = Field(default_factory=list)  # pairs found in the text
     ungrounded: list[dict] = Field(default_factory=list)  # pairs the model returned that the text doesn't contain
+    classified: list[dict] = Field(default_factory=list)  # classify tasks: each parenthetical with its label
     error: str | None = None
     raw: str | None = None
     usage: dict = Field(default_factory=dict)
@@ -150,30 +157,70 @@ def grounded(pair: dict, text: str) -> bool:
         _squash(pair["definition"]) in _squash(text)
 
 
-def parse_extraction(task: AbbreviationTask, document: Document, content: str) -> Extraction:
+def build_abbreviation_request(task: AbbreviationTask, document: Document):
+    """Returns (messages, output schema, parentheticals by id); parentheticals only for classify tasks."""
+    schema = copy.deepcopy(task.output_schema)
+    values = {"text": document.text}
+    found = {}
+    if task.kind == "classify":
+        found = {f"p{i}": p for i, p in enumerate(find_parentheticals(document.text), 1)}
+        values["parentheticals"] = "\n".join(
+            json.dumps({"id": pid, "context": f"…{p['before'][-60:]} ({p['inner']})"}, ensure_ascii=False)
+            for pid, p in found.items())
+        schema["properties"]["parentheticals"]["items"]["properties"]["id"]["enum"] = list(found)
+    messages = [{"role": m.role, "content": m.template.format(**values)} for m in task.messages]
+    return messages, schema, found
+
+
+def _ground(document: Document, pairs: list[dict], **fields) -> Extraction:
+    return Extraction(document=document.id, status="ok", abbreviation_map=[p for p in pairs if grounded(p, document.text)],
+                      ungrounded=[p for p in pairs if not grounded(p, document.text)], **fields)
+
+
+def parse_extraction(task: AbbreviationTask, document: Document, content: str, schema: dict | None = None,
+                     found: dict | None = None) -> Extraction:
     """
-    Strictly parses an answer: invalid JSON or a schema violation is a parse_error. The prompt asks for definitions
-    exactly as written, so pairs not found in the text are kept apart (ungrounded) rather than used.
+    Strictly parses an answer: invalid JSON or a schema violation is a parse_error, and so is a classify answer
+    that labels a parenthetical twice or leaves one out. Definitions are asked for exactly as written, so pairs not
+    found in the text are kept apart (ungrounded) rather than used.
     """
+    schema = schema or task.output_schema
     try:
         value = json.loads(content)
-        jsonschema.validate(value, task.output_schema)
+        jsonschema.validate(value, schema)
     except (json.JSONDecodeError, jsonschema.ValidationError) as e:
         return Extraction(document=document.id, status="parse_error", error=str(e).splitlines()[0], raw=content)
-    pairs = [{"abbreviation": p["abbreviation"], "definition": p["definition"]} for p in value["abbreviations"]]
-    return Extraction(document=document.id, status="ok", abbreviation_map=[p for p in pairs if grounded(p, document.text)],
-                      ungrounded=[p for p in pairs if not grounded(p, document.text)], raw=content)
+    if task.kind == "extract":
+        pairs = [{"abbreviation": p["abbreviation"], "definition": p["definition"]} for p in value["abbreviations"]]
+        return _ground(document, pairs, raw=content)
+    ids = [p["id"] for p in value["parentheticals"]]
+    if sorted(ids) != sorted(found):
+        return Extraction(document=document.id, status="parse_error", raw=content,
+                          error=f"labeled {sorted(set(ids))}, expected each of {sorted(found)} once")
+    classified, pairs = [], []
+    for p in value["parentheticals"]:
+        classified.append({**found[p["id"]], "label": p["label"], "short_form": p["short_form"],
+                           "long_form": p["long_form"]})
+        if p["label"] == "same":
+            pairs.append({"abbreviation": p["short_form"], "definition": p["long_form"]})
+    classified.sort(key=lambda c: c["start"])
+    return _ground(document, pairs, raw=content, classified=classified)
 
 
 def extract(task: AbbreviationTask, backend: Backend, document: Document) -> Extraction:
-    """The abbreviations a document defines. Backend failures are status api_error, never an empty map."""
-    messages = [{"role": m.role, "content": m.template.format(text=document.text)} for m in task.messages]
+    """
+    The abbreviations a document defines. Backend failures are status api_error, never an empty map. A classify
+    task with no parentheticals to label makes no model call.
+    """
+    messages, schema, found = build_abbreviation_request(task, document)
+    if task.kind == "classify" and not found:
+        return Extraction(document=document.id, status="ok", seconds=0.0)
     start = time.perf_counter()
     try:
-        response = backend.complete(messages, task.output_schema)
+        response = backend.complete(messages, schema)
     except BackendError as e:
         return Extraction(document=document.id, status="api_error", error=str(e), seconds=time.perf_counter() - start)
-    extraction = parse_extraction(task, document, response.content)
+    extraction = parse_extraction(task, document, response.content, schema, found)
     extraction.usage, extraction.seconds = response.usage, time.perf_counter() - start
     return extraction
 
@@ -209,7 +256,7 @@ def extract_documents(documents: str | Path, task: AbbreviationTask, backend: Ba
             result = future.result()
             if result.status == "ok":
                 sink.write(json.dumps({"document": result.document, "abbreviation_map": result.abbreviation_map,
-                                       "ungrounded": result.ungrounded, "task": task.name, "fingerprint": fingerprint,
+                                       "ungrounded": result.ungrounded, "classified": result.classified, "task": task.name, "fingerprint": fingerprint,
                                        "model": result.usage.get("model"), "usage": result.usage,
                                        "seconds": result.seconds}) + "\n")
                 sink.flush()
