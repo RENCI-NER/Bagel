@@ -90,6 +90,7 @@ def cmd_eval(args):
     print(f"matcher: {matcher.describe()}\n")
     rows = [("selection", k) for k in ("n", "linked", "correct", "incorrect", "unjudged", "conflicting", "abstained",
                                        "failed", "coverage", "precision_judged", "accuracy")]
+    rows += [("confusion", k) for k in ("tp", "fp", "fn", "tn", "precision", "end_to_end_recall")]
     rows += [("gold", "mentions_with_correct_gold"), ("gold", "mentions_with_reachable_gold"),
              ("retrieval", "recall"), ("adjudication_given_retrieved", "exact_on_correct"),
              ("adjudication_given_retrieved", "exact_on_incorrect"), ("adjudication_given_retrieved", "multiple_exact"),
