@@ -60,15 +60,18 @@ def test_run_metrics():
     assert report["abstention_when_correct_not_retrieved"] == {"n": 1, "abstained": 0.0}
 
 
-def test_confusion_counts_abstentions_by_whether_a_correct_candidate_was_offered():
+def test_confusion_counts():
     results = {"m1": _result("A:1", exact=("A:1",)),  # tp
-               "m2": _result("A:2", exact=()),  # abstains; the correct A:9 wasn't among the candidates: tn
-               "m3": _result("A:1", exact=("A:1",))}  # unjudged link
-    item = {"id": "m4", "closed_world": True, "judgments": [{"curie": "A:2", "verdict": "correct"}]}
+               "m2": _result("A:2", exact=("A:2",)),  # wrong link where a correct concept exists: fp and fn
+               "m3": _result(None, exact=())}  # no correct concept exists and nothing linked: tn
+    items = ITEMS + [{"id": "m4", "closed_world": True, "judgments": [{"curie": "A:2", "verdict": "correct"}]},
+                     {"id": "m5", "closed_world": False, "judgments": [{"curie": "A:2", "verdict": "correct"}]}]
     results["m4"] = _result(None, exact=())  # abstains although the correct A:2 was offered: fn
-    c = evaluate_run(results, ITEMS + [item], IdentityMatcher())["confusion"]
-    assert (c["tp"], c["fp"], c["fn"], c["tn"], c["unjudged"]) == (1, 0, 1, 1, 1)
-    assert c["precision"] == 1.0 and c["end_to_end_recall"] == 1 / 3
+    results["m5"] = _result("A:1", exact=("A:1",))  # links something nobody judged: unjudged, not fn
+    c = evaluate_run(results, items, IdentityMatcher())["confusion"]
+    assert (c["tp"], c["fp"], c["fn"], c["tn"], c["unjudged"]) == (1, 1, 2, 1, 1)
+    assert (c["fn_wrong_link"], c["fn_no_link"], c["fn_not_retrieved"]) == (1, 1, 1)
+    assert c["precision"] == 0.5 and c["recall"] == 1 / 3
 
 
 def test_closed_world_makes_unjudged_links_incorrect():

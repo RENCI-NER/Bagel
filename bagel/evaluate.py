@@ -59,10 +59,19 @@ def evaluate_run(results: dict[str, MentionResult], items: list[dict], matcher) 
                         else sel.status)
         correct = [j["curie"] for j in judgments if j["verdict"] == "correct"]
         gold_offered = any(matcher.same(o, c) for o in _candidate_ids(result) for c in correct)
-        if sel.status == "linked":
-            confusion[{"correct": "tp", "incorrect": "fp"}.get(outcomes[-1], outcomes[-1])] += 1
-        else:
-            confusion["fn" if gold_offered else "tn"] += 1
+        outcome = outcomes[-1]
+        if outcome == "correct":
+            confusion["tp"] += 1
+        elif outcome in ("unjudged", "conflicting"):
+            confusion[outcome] += 1
+        else:  # a wrong link, an abstention or a failure
+            confusion["fp"] += outcome == "incorrect"
+            if correct:  # a correct concept exists and wasn't linked
+                confusion["fn"] += 1
+                confusion["fn_wrong_link" if outcome == "incorrect" else "fn_no_link"] += 1
+                confusion["fn_not_retrieved"] += not gold_offered
+            elif outcome != "incorrect":
+                confusion["tn"] += 1
         if not correct:
             continue
         has_gold += 1
@@ -87,15 +96,17 @@ def evaluate_run(results: dict[str, MentionResult], items: list[dict], matcher) 
     return {
         "matcher": matcher.describe(),
         "selection": selection_metrics(outcomes),
-        # tp/fp: linked to a correct/incorrect concept; fn: abstained or failed although a correct concept was among
-        # the candidates; tn: abstained or failed with no correct concept among them. Open-world benchmarks also
-        # have links nobody judged (unjudged), which are none of the four.
+        # tp: linked to a correct concept. fp: linked to an incorrect one. fn: a correct concept exists and the run
+        # neither linked it nor linked something unjudged (a wrong link is both fp and fn). tn: no correct concept
+        # exists and the run didn't link. Links nobody judged (open-world benchmarks) are none of these.
         "confusion": {"tp": confusion["tp"], "fp": confusion["fp"], "fn": confusion["fn"], "tn": confusion["tn"],
                       "unjudged": confusion["unjudged"], "conflicting": confusion["conflicting"],
+                      "fn_wrong_link": confusion["fn_wrong_link"], "fn_no_link": confusion["fn_no_link"],
+                      "fn_not_retrieved": confusion["fn_not_retrieved"],
                       "precision": confusion["tp"] / (confusion["tp"] + confusion["fp"])
                       if confusion["tp"] + confusion["fp"] else None,
-                      # of mentions with a correct concept, end to end (retrieval and linking)
-                      "end_to_end_recall": confusion["tp"] / has_gold if has_gold else None},
+                      "recall": confusion["tp"] / (confusion["tp"] + confusion["fn"])
+                      if confusion["tp"] + confusion["fn"] else None},
         "status": dict(Counter(r.status for r in results.values())),
         "gold": {"mentions_with_correct_gold": has_gold,
                  # correct gold the matcher can't resolve (e.g. identifiers missing from this Babel release)
