@@ -1,0 +1,17 @@
+# Abbreviation check task for a typed-decision backend (Jev): one Choice question per extracted pair, asked about
+# the sentence where it's defined. Only pairs whose probability of "same" reaches the threshold are used.
+# State fields: text (the defining sentence), short_form, long_form.
+name: abbreviations_check_jev_v1
+description: 'Checks that an extracted short form stands for the same thing as its long form, rather than naming an
+  instance of it (KCNJ10 for "K+ channel") or being paired with the wrong words.'
+instructions: In `text`, the author uses `short_form`. Does `short_form` stand for `long_form`?
+criteria:
+  same:
+    what: '`short_form` is an abbreviation, acronym, symbol or short name for exactly the same thing as `long_form`.'
+    examples: [cystic fibrosis = CF, hydrogen peroxide = H2O2, tumor necrosis factor alpha = TNF-α]
+  instance:
+    what: '`short_form` names something different from `long_form`: a particular example, member, subtype, position
+      or level, strain, cell line or gene of what `long_form` describes.'
+    examples: [a potassium channel -> KCNA1, cervical -> C5, a lung cancer cell line -> Calu-3, influenza A viruses -> H3N2]
+  other:
+    what: '`long_form` is not what `short_form` stands for: a value or statistic, part of the right phrase, or unrelated words.'

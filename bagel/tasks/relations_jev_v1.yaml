@@ -1,0 +1,36 @@
+# Typed relation task for a typed-decision backend (Jev): state {text, mention}; one Choice question per candidate,
+# with the candidate described inside the question (Jev handles indirection like "candidates[3]" poorly). The answer
+# for each candidate is mapped to SKOS; its probability becomes the judgment's confidence.
+name: relations_jev_v1
+description: 'Jev relation classification per candidate, with relations_v2 definitions. Options are listed with
+  noMatch first, since Jev leans toward the first option and a lean toward abstaining is the cheaper error.'
+kind: typed
+candidate_fields:
+  label: label
+  category: category
+  taxon: taxa
+  definition: description
+instructions: How does `candidate` relate to what `mention` means in `text`?
+criteria:
+  none:
+    what: '`candidate` is unrelated to `mention`, or is a different sense of the same words.'
+  related:
+    what: '`candidate` is closely associated with `mention` but is neither the same concept nor broader or narrower.'
+    examples: [a disease and its symptom, a gene and the same gene in another species, a structure and its part]
+  broad:
+    what: '`mention` is more general than `candidate`: `candidate` is one specific kind of what `mention` names.'
+    examples: [mention "brain injury" and candidate "cerebellar injury"]
+  narrow:
+    what: '`mention` is more specific than `candidate`: `candidate` is a broader concept that includes it.'
+    examples: [mention "type 2 diabetes" and candidate "diabetes mellitus"]
+  exact:
+    what: '`candidate` is the concept `mention` refers to in `text`. Wording, abbreviation, spelling, plural and
+      adjectival forms may differ. A gene and the protein it encodes count as the same, and so do a drug and its
+      active ingredient. For genes and proteins the taxon must match (assume human unless `text` says otherwise).'
+    examples: [mention "diabetic patients" and candidate "diabetes mellitus"]
+labels:
+  exact: exactMatch
+  narrow: broadMatch
+  broad: narrowMatch
+  related: relatedMatch
+  none: noMatch
